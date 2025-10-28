@@ -36,8 +36,10 @@ the sketch uses libraries from
                        // (> 1sec) Fn button
                        // Mouse moves at an increased speed after ~0.8 sec
                        // Version: v2.1
+#define VERSION_SHIFT 3  // extended version with shift key 
+                       // Version: v3.0
 // -----------------------------------------------------------
-#define VERSION_TYPE    VERSION_EXT  // OLD, NEW or EXT
+#define VERSION_TYPE    VERSION_SHIFT  // OLD, NEW or EXT
 // -----------------------------------------------------------
 #include <Mouse.h>
 #include <Keyboard.h>
@@ -57,6 +59,10 @@ the sketch uses libraries from
 #define VERBOSE(x)  (((_VERBOSE) & (1<<x)) == (1<<x))
 
 // disable the next define if you have a BUTTON instead a TOGGLE SWITCH: 
+#ifdef VERSION_SHIFT
+bool ShiftPressed = false;
+unsigned long ShiftPressedTime = 0;
+#endif  
 #define USE_STF_TOGGLE
 
 const char* Device  = "Stick Remote Control (SteFly)";
@@ -65,8 +71,12 @@ const char* Date    = __DATE__;  // = Compile Date: "2025-01-24";
   const char* Version = "v1.0";
 #elif VERSION_TYPE  == VERSION_NEW
   const char* Version = "v2.0";
-#else  // VERSION_TYPE : VERSION_EXT
+#elif VERSION_TYPE  == VERSION_EXT
   const char* Version = "v2.1";
+#elif VERSION_TYPE  == VERSION_SHIFT
+  const char* Version = "v3.0";
+#else
+  const char* Version = "unknown";
 #endif
 
 // check Linux delimiter and/or Window delimiter: 
@@ -79,6 +89,7 @@ const int joy_rebounce_interval = 3;
 const int button_hold_threshold = 900;
 const int button_long_hold      = 5000;  // = 5 seconds
 const int joy_hold_threshold    = 80;
+const int dblclick_threshold    = 300;
 
 const int Mouse_Move_Distance = 4;     // mouse one step (-> mouse speed and accurancy)
 const int mouse_speed_switch = 800;   // faster mouse after this time (in ms)
@@ -149,6 +160,10 @@ const int btn_design[btnSize][4] = {
     { 9, 0,               'E',         0},         // btnFn: mouse switch (and 'P')
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
     {15, KEY_ESC,         'Q',         'X'},       // btnX: ESC and 'Q'uit, or Shutdown
+#elif VERSION_TYPE  ==  VERSION_SHIFT
+    { 9, '1',             '2',         '3'},       // btnFn:
+    {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
+    {15, KEY_ESC,         'Q',         'X'},       // btnX: ESC and 'Q'uit, or Shutdown
 #else
     { 9, 0,               0,           0},         // btnFn: mouse switch (and 'P')
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
@@ -208,7 +223,7 @@ void setup() {
 #endif  
 
   // btnEnter:
-  button[btnEnter].onRelease(0,button_hold_threshold-1,onBtnReleasedJoy);
+  button[btnEnter].onRelease(0,button_hold_threshold-1,onEnter);
   button[btnEnter].onRelease(button_hold_threshold,onReset);
   
   // joy stick arrow button
@@ -222,6 +237,9 @@ void setup() {
 #if VERSION_TYPE  ==  VERSION_EXT
   button[btnFn].onRelease(0,button_hold_threshold-1, onMouseMode);
   button[btnFn].onHold(button_hold_threshold, onButtonLong);
+#elif VERSION_TYPE  ==  VERSION_SHIFT
+  button[btnFn].onRelease(0,button_hold_threshold-1, onButtonReleased);
+  button[btnFn].onHold(button_hold_threshold, onButtonLong);
 #else
   button[btnFn].onRelease(onMouseMode);
 #endif
@@ -231,14 +249,14 @@ void setup() {
   button[btnMenu].onHold(button_hold_threshold, onButtonLong);
 
   // btnX with Short, Long and VeryLong press
-#if VERSION_TYPE  ==  VERSION_EXT
+#if VERSION_TYPE  >=  VERSION_EXT
   button[btnX].onHoldRepeat(80, 10, onXRepeat);
 #endif
   button[btnX].onRelease(onXRelease);
 
   // btnSTF
   button[btnSTF].onPress(onSTF_switch);
-#ifndef USE_STF_TOGGLE
+#ifdef USE_STF_TOGGLE
   button[btnSTF].onRelease(onSTF_switch);
 #endif
 
@@ -249,6 +267,11 @@ void setup() {
 void loop() {
   for (int i=0;i<btnSize;i++)
     button[i].update();
+    
+  if (ShiftPressedTime > 0 && millis() - ShiftPressedTime >= dblclick_threshold)
+  {
+    ShiftPressedTime = 0;
+  }
 
 #if VERSION_TYPE > VERSION_OLD
   wdtReset();
@@ -275,7 +298,7 @@ void onBtnPress(PushButton& btn) {
   Serial.println(btn_timer[index]);
 #endif
 }
-void onBtnReleasedJoy(PushButton& btn){
+void onEnter(PushButton& btn){
     if (mouse_active) 
       Mouse.click(MOUSE_LEFT);
     else {
@@ -285,10 +308,13 @@ void onBtnReleasedJoy(PushButton& btn){
     }
 }
 
+#if VERSION_TYPE  !=  VERSION_SHIFT
 void onMouseMode(PushButton& btn){
     mouse_active = !mouse_active;
     // Keyboard.write(btn_design[btnFn][KEY_PRESSED]);
 }
+#endif
+
 void onButtonReleased(PushButton& btn){
   int index = &btn - button;
 #if VERBOSE(1)  && defined(WITH_SERIAL)
@@ -429,7 +455,7 @@ void onJoyRelease(PushButton& btn){
   btn_timer[index] = 0; //  millis();
 }
 
-#if VERSION_TYPE  ==  VERSION_EXT
+#if VERSION_TYPE  >=  VERSION_EXT
 void onXRepeat(PushButton& btn){
   
   if (!x_repeat++)
@@ -446,7 +472,7 @@ void onXRepeat(PushButton& btn){
 #endif  // VERSION_TYPE  ==  VERSION_EXT
 
 void onXRelease(PushButton& btn) {
-#if  VERSION_TYPE  ==  VERSION_EXT
+#if  VERSION_TYPE  >=  VERSION_EXT
   unsigned long release_time = millis() - btn_timer[btnX];
   char key = 0;
   if (x_repeat < 3 ) 
@@ -485,6 +511,23 @@ void onXRelease(PushButton& btn) {
 }
 
 void onSTF_switch(PushButton& btn){
+
+#ifdef VERSION_SHIFT
+  int ShiftTime = (ShiftPressedTime > 0) ? millis() - ShiftPressedTime : 0;
+ 
+  bool released = ShiftTime >= dblclick_threshold;
+  ShiftPressed = button[btnSTF].isPressed();
+  mouse_active = ShiftPressed;
+  if (!ShiftPressed)
+    return;
+   
+  if (ShiftPressedTime == 0) {
+      ShiftPressedTime = millis();
+      return;
+  }    
+ #endif
+ // Serial.println("DblClick");
+
 #ifdef USE_STF_TOGGLE
   // use a BUTTON to switch between Vario or Speed To Fly mode
   if (STF_key == btn_design[btnSTF][KEY_LONG]) 
