@@ -55,9 +55,6 @@ the sketch uses libraries from
 # define MOUSE_ACCELERATOR
 #endif
 
-#define _VERBOSE   0  // or: ((1<<2) | (1<<3) | (1<<4))  // 4 is not used up to now
-#define VERBOSE(x)  (((_VERBOSE) & (1<<x)) == (1<<x))
-
 // disable the next define if you have a BUTTON instead a TOGGLE SWITCH: 
 #ifdef VERSION_SHIFT
 bool ShiftPressed = false;
@@ -87,11 +84,14 @@ const char* FileName  = (strrchr(__FILE__, '/') ?                     \
 // define timing for buttons etc.
 const int joy_rebounce_interval = 3;
 const int button_hold_threshold = 900;
+const int enter_hold_threshold  = 2000;
 const int button_long_hold      = 5000;  // = 5 seconds
 const int joy_hold_threshold    = 80;
+const unsigned long start_delay = 500;
 const int dblclick_threshold    = 300;
+const unsigned int start_wait   = 2000;
 
-const int Mouse_Move_Distance = 4;     // mouse one step (-> mouse speed and accurancy)
+const int MouseDistance = 4;     // mouse one step (-> mouse speed and accurancy)
 const int mouse_speed_switch = 800;   // faster mouse after this time (in ms)
 //                             KEY, MOUSE
 const int joy_repeats[][2] = {{  5,   0},     // 1st reaction
@@ -127,8 +127,8 @@ unsigned long timeWDT = 0;
 #endif
 enum {PIN, JOY_KEY, JOY_X, JOY_Y};
 enum {KEY_PIN, KEY_PRESSED, KEY_LONG, KEY_VERYLONG};
-const int mouse_x = Mouse_Move_Distance;
-const int mouse_y = Mouse_Move_Distance;
+const int x = MouseDistance;
+const int y = MouseDistance;
 
 /* -----------------------------------------------------------------
  define press (short press) and hold (long press) functions for each button
@@ -172,10 +172,10 @@ const int btn_design[btnSize][4] = {
     { 0, 0,               0,           0},         // btnPTT - not connected here
 
 //   Pin,JOY_KEY           JOY_X        JOY_Y
-    { 2, KEY_UP_ARROW,    0,           -mouse_y},  // joyUp
-    { 4, KEY_DOWN_ARROW,  0,           +mouse_y},  // joyDown
-    { 5, KEY_LEFT_ARROW,  -mouse_x,    0},         // joyLeft
-    { 3, KEY_RIGHT_ARROW, +mouse_x,    0},         // joyRight
+    { 2, KEY_UP_ARROW,    0,           -y},        // joyUp
+    { 4, KEY_DOWN_ARROW,  0,           +y},        // joyDown
+    { 5, KEY_LEFT_ARROW,  -x,          0},         // joyLeft
+    { 3, KEY_RIGHT_ARROW, +x,          0},         // joyRight
 
   //  Pin,Switch On        Switch Off
     { 7, 'V',             'S',         0}          // btnSTF
@@ -205,27 +205,48 @@ void watchdogInit() {
 void wdtReset() {
     timeNow = millis();
     if (timeNow - timeWDT >= 450) {  // 2 in 1 second
-#if VERBOSE(1) && defined(WITH_SERIAL)
-        Serial.println(timeNow);
-#endif  
         timeWDT = timeNow;
         wdt_reset();
     }
 }
 #endif  // WITH_WATCHDOG
 
+bool startBit = false;
+unsigned long startTime = 0;
+
 void setup() {
 #ifdef WITH_SERIAL
   Serial.begin(9600);
 #endif  // WITH_SERIAL
+
+// ============================================= 
+// ============================================= 
+// ============================================= 
+  // wait until button 'Enter' is released
+  // pinMode( btn_design[btnEnter][PIN], INPUT); 
+  pinMode( btn_design[btnEnter][PIN], INPUT_PULLUP); 
+/* */
+  while (!digitalRead(btn_design[btnEnter][PIN])) { // = isPressed
+    wdtReset();
+    delay(200);
+  }
+
+/*  */
+// ============================================= 
+// ============================================= 
+// ============================================= 
 #ifdef  WITH_WATCHDOG
   watchdogInit();
 #endif  
 
   // btnEnter:
-  button[btnEnter].onRelease(0,button_hold_threshold-1,onEnter);
-  button[btnEnter].onRelease(button_hold_threshold,onReset);
-  
+/*/
+  button[btnEnter].onRelease(0,enter_hold_threshold-1,onEnter);
+  button[btnEnter].onRelease(enter_hold_threshold,onReset);
+ /*/
+  button[btnEnter].onRelease(0,enter_hold_threshold-1,onEnter);
+  button[btnEnter].onHold(enter_hold_threshold, onReset);
+/**/  
   // joy stick arrow button
   for (int i=joyUp;i<=joyRight;i++) {
      button[i].onHoldRepeat(joy_hold_threshold, joy_rebounce_interval, onJoyArrow);
@@ -262,15 +283,24 @@ void setup() {
 
   Keyboard.begin();
   Mouse.begin();
+
+  startTime = millis(); // overflow after ~50 days
 }
 
 void loop() {
-  for (int i=0;i<btnSize;i++)
-    button[i].update();
-    
-  if (ShiftPressedTime > 0 && millis() - ShiftPressedTime >= dblclick_threshold)
-  {
-    ShiftPressedTime = 0;
+  unsigned long time = millis();
+  if (!startBit && (time-startTime > start_wait)) {
+    startBit = true;
+#ifdef WITH_SERIAL
+    Serial.println("Start...");
+#endif  // WITH_SERIAL
+  } else {
+    for (int i=0;i<btnSize;i++)
+      button[i].update();
+  
+    if (ShiftPressedTime > 0 && time - ShiftPressedTime >= dblclick_threshold) {
+        ShiftPressedTime = 0;
+    }
   }
 
 #if VERSION_TYPE > VERSION_OLD
@@ -291,12 +321,6 @@ void loop() {
 void onBtnPress(PushButton& btn) {
   int index = &btn - button;
   btn_timer[index] = millis();
-#if VERBOSE(1) && defined(WITH_SERIAL)
-  Serial.print("Button Press (JOY): ");
-  Serial.print(index);
-  Serial.print(", ");
-  Serial.println(btn_timer[index]);
-#endif
 }
 void onEnter(PushButton& btn){
     if (mouse_active) 
@@ -311,18 +335,11 @@ void onEnter(PushButton& btn){
 #if VERSION_TYPE  !=  VERSION_SHIFT
 void onMouseMode(PushButton& btn){
     mouse_active = !mouse_active;
-    // Keyboard.write(btn_design[btnFn][KEY_PRESSED]);
 }
 #endif
 
 void onButtonReleased(PushButton& btn){
   int index = &btn - button;
-#if VERBOSE(1)  && defined(WITH_SERIAL)
-  Serial.print("Button Released: ");
-  Serial.print(index);
-  Serial.print(", ");
-  Serial.println(millis());
-#endif
   if (btn_design[index][KEY_PRESSED]) {
     Keyboard.write(btn_design[index][KEY_PRESSED]);
   }
@@ -332,28 +349,24 @@ void onReset(PushButton& btn){
   if (btn_design[0][KEY_LONG]) {
     Keyboard.write(btn_design[0][KEY_LONG]);
   }
-  exit(1);
+  if (!button[btnSTF].isPressed()) {
+    if (millis()-startTime > start_delay) {
+#ifdef WITH_SERIAL
+    Serial.println("Reset");
+#endif  // WITH_SERIAL
+    delay(100);
+    exit(1);
+  }
+  }
 } 
 
 void onBtnHeldTopLeft(PushButton& btn){
   int index = &btn - button;
-#if VERBOSE(1) && defined(WITH_SERIAL)
-  Serial.print("TopLeft Held: ");
-  Serial.print(index);
-  Serial.print(", ");
-  Serial.println(millis());
-#endif  
   Keyboard.write(btn_design[index][KEY_LONG]);
 }
 
 void onButtonLong(PushButton& btn){
   int index = &btn - button;
-#if VERBOSE(1)  && defined(WITH_SERIAL)
-  Serial.print("Button Held: ");
-  Serial.print(index);
-  Serial.print(", ");
-  Serial.println(millis());
-#endif  
   if (btn_design[index][KEY_LONG]) {
     Keyboard.write(btn_design[index][KEY_LONG]);
   }
@@ -361,12 +374,6 @@ void onButtonLong(PushButton& btn){
  
 void onButtonVeryLong(PushButton& btn){
   int index = &btn - button;
-#if VERBOSE(1) && defined(WITH_SERIAL)
-  Serial.print("Button Very Long: ");
-  Serial.print(index);
-  Serial.print(", ");
-  Serial.println(millis());
-#endif  
   if (btn_design[index][KEY_VERYLONG]) {
     Keyboard.write(btn_design[index][KEY_VERYLONG]);
   } else if (btn_design[index][KEY_LONG]) {
@@ -395,24 +402,8 @@ void onJoyArrow(PushButton& btn) { //
       repeat_mode[index] = 0;
       key_bounce = joy_repeats[0][mouse_active];  // immediately / smooth
       joy_counter[index] = 0;
-#if VERBOSE(2) && defined(WITH_SERIAL)
-      Serial.print("first: ");
-      Serial.print(index);
-      Serial.print(", ");
-      Serial.println(btn_timer[index]);
-#endif
     }
     if (joy_counter[index] >= key_bounce) {
-#if VERBOSE(2) && defined(WITH_SERIAL)
-      Serial.print("joy: ");
-      Serial.print(index);
-      Serial.print(", ");
-      Serial.print(mouse_active ? "Mouse" : "Key");
-      Serial.print(", ");
-      Serial.print(repeat_mode[index]);
-      Serial.print(", ");
-      Serial.println(current_time - btn_timer[index]);
-#endif
       if (mouse_active) {
         Mouse.move(btn_design[index][JOY_X], btn_design[index][JOY_Y]);
       } else { // mouse not active
@@ -433,23 +424,11 @@ void onJoyArrow(PushButton& btn) { //
       joy_counter[index]++;
     }
   } else {  // Btn Enter is pressed!
-#if VERBOSE(2) && defined(WITH_SERIAL)
-    Serial.print("+ ");
-    Serial.println(current_time);
-#endif
   }
 }
 
 void onJoyRelease(PushButton& btn){
   int index = &btn - button;
-#if VERBOSE(2) && defined(WITH_SERIAL)
-  if (first_pressed & ( 1 << index)) {
-    Serial.print("Joy Released: ");
-    Serial.print(index);
-    Serial.print(", ");
-    Serial.println(millis() - btn_timer[index]);
-  }
-#endif
   joy_counter[index] = 0;
   first_pressed &= ~(1 << index);
   btn_timer[index] = 0; //  millis();
@@ -460,14 +439,6 @@ void onXRepeat(PushButton& btn){
   
   if (!x_repeat++)
       btn_timer[btnX] = millis();
-#if VERBOSE(8) && defined(WITH_SERIAL)
-      Serial.print("btnX: ");
-      Serial.print(btnX);
-      Serial.print(", ");
-      Serial.print(x_repeat);
-      Serial.print(", ");
-      Serial.println(millis() - btn_timer[btnX]);
-#endif
 }
 #endif  // VERSION_TYPE  ==  VERSION_EXT
 
@@ -483,24 +454,6 @@ void onXRelease(PushButton& btn) {
      key = btn_design[btnX][KEY_LONG]; 
   else // x_repeat >= 200)
      key = btn_design[btnX][KEY_VERYLONG]; 
-#if VERBOSE(4) && defined(WITH_SERIAL)
-      Serial.print("btnX - Released: ");
-      Serial.print(x_repeat);
-      Serial.print(", ");
-      switch ((int)key) {
-        case 0:  Serial.print("-");break;
-        case KEY_ESC: Serial.print("ESC");break;
-        case -79: Serial.print("ESC");break;
-        default: 
-           if(isalnum(key))
-                Serial.print(key);
-           else
-                Serial.print((int)key);
-           break;
-      }
-      Serial.print(", ");
-      Serial.println(release_time);
-#endif
 #else
   char key = btn_design[btnX][KEY_PRESSED];
 #endif
