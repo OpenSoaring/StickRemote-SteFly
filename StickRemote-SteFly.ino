@@ -57,7 +57,7 @@ the sketch uses libraries from
 #define VERBOSE(x)  (((_VERBOSE) & (1<<x)) == (1<<x))
 
 // disable the next define if you have a BUTTON instead a TOGGLE SWITCH: 
-// #define USE_STF_TOGGLE
+#define USE_STF_TOGGLE
 
 const char* Device  = "Stick Remote Control (SteFly)";
 const char* Date    = __DATE__;  // = Compile Date: "2025-01-24";
@@ -238,7 +238,7 @@ void setup() {
 
   // btnSTF
   button[btnSTF].onPress(onSTF_switch);
-#ifdef USE_STF_TOGGLE
+#ifndef USE_STF_TOGGLE
   button[btnSTF].onRelease(onSTF_switch);
 #endif
 
@@ -486,11 +486,11 @@ void onXRelease(PushButton& btn) {
 
 void onSTF_switch(PushButton& btn){
 #ifdef USE_STF_TOGGLE
-  // use a SWITCH to enable Vario or Speed To Fly mode
-  if (button[btnSTF].isPressed()) 
-#else
   // use a BUTTON to switch between Vario or Speed To Fly mode
   if (STF_key == btn_design[btnSTF][KEY_LONG]) 
+#else
+  // use a SWITCH to enable Vario or Speed To Fly mode
+  if (button[btnSTF].isPressed()) 
 #endif
     STF_key = (btn_design[btnSTF][KEY_PRESSED]);
   else
