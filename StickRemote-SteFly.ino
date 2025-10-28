@@ -206,6 +206,7 @@ void setup() {
 #ifdef  WITH_WATCHDOG
   watchdogInit();
 #endif  
+
   // btnEnter:
   button[btnEnter].onRelease(0,button_hold_threshold-1,onBtnReleasedJoy);
   button[btnEnter].onRelease(button_hold_threshold,onReset);
@@ -279,16 +280,14 @@ void onBtnReleasedJoy(PushButton& btn){
       Mouse.click(MOUSE_LEFT);
     else {
       if (btn_design[0][KEY_PRESSED]) {
-        Keyboard.press(btn_design[0][KEY_PRESSED]);
-        Keyboard.releaseAll();
+        Keyboard.write(btn_design[0][KEY_PRESSED]);
       }
     }
 }
 
 void onMouseMode(PushButton& btn){
     mouse_active = !mouse_active;
-    // Keyboard.press(btn_design[btnFn][KEY_PRESSED]);
-    // Keyboard.releaseAll();
+    // Keyboard.write(btn_design[btnFn][KEY_PRESSED]);
 }
 void onButtonReleased(PushButton& btn){
   int index = &btn - button;
@@ -299,15 +298,13 @@ void onButtonReleased(PushButton& btn){
   Serial.println(millis());
 #endif
   if (btn_design[index][KEY_PRESSED]) {
-    Keyboard.press(btn_design[index][KEY_PRESSED]);
-    Keyboard.releaseAll();
+    Keyboard.write(btn_design[index][KEY_PRESSED]);
   }
 }
 
 void onReset(PushButton& btn){
   if (btn_design[0][KEY_LONG]) {
-    Keyboard.press(btn_design[0][KEY_LONG]);
-    Keyboard.releaseAll();  
+    Keyboard.write(btn_design[0][KEY_LONG]);
   }
   exit(1);
 } 
@@ -320,8 +317,7 @@ void onBtnHeldTopLeft(PushButton& btn){
   Serial.print(", ");
   Serial.println(millis());
 #endif  
-  Keyboard.press(btn_design[index][KEY_LONG]);
-  Keyboard.releaseAll();  
+  Keyboard.write(btn_design[index][KEY_LONG]);
 }
 
 void onButtonLong(PushButton& btn){
@@ -333,8 +329,7 @@ void onButtonLong(PushButton& btn){
   Serial.println(millis());
 #endif  
   if (btn_design[index][KEY_LONG]) {
-    Keyboard.press(btn_design[index][KEY_LONG]);
-    Keyboard.releaseAll();  
+    Keyboard.write(btn_design[index][KEY_LONG]);
   }
 }
  
@@ -347,11 +342,9 @@ void onButtonVeryLong(PushButton& btn){
   Serial.println(millis());
 #endif  
   if (btn_design[index][KEY_VERYLONG]) {
-    Keyboard.press(btn_design[index][KEY_VERYLONG]);
-    Keyboard.releaseAll();  
+    Keyboard.write(btn_design[index][KEY_VERYLONG]);
   } else if (btn_design[index][KEY_LONG]) {
-    Keyboard.press(btn_design[index][KEY_LONG]);
-    Keyboard.releaseAll();  
+    Keyboard.write(btn_design[index][KEY_LONG]);
   }
 } 
 
@@ -397,8 +390,7 @@ void onJoyArrow(PushButton& btn) { //
       if (mouse_active) {
         Mouse.move(btn_design[index][JOY_X], btn_design[index][JOY_Y]);
       } else { // mouse not active
-        Keyboard.press(btn_design[index][JOY_KEY]);
-        Keyboard.releaseAll(); 
+        Keyboard.write(btn_design[index][JOY_KEY]);
       }
       switch(repeat_mode[index]) {
         case 0: 
@@ -487,8 +479,7 @@ void onXRelease(PushButton& btn) {
   char key = btn_design[btnX][KEY_PRESSED];
 #endif
   if (key) {
-    Keyboard.press(key); 
-    Keyboard.releaseAll(); 
+    Keyboard.write(key); 
   }
   x_repeat = 0;
 }
@@ -504,6 +495,5 @@ void onSTF_switch(PushButton& btn){
     STF_key = (btn_design[btnSTF][KEY_PRESSED]);
   else
     STF_key = (btn_design[btnSTF][KEY_LONG]); 
-  Keyboard.press(STF_key);
-  Keyboard.releaseAll(); 
+  Keyboard.write(STF_key);
 }
