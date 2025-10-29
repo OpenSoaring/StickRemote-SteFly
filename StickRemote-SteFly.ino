@@ -164,7 +164,7 @@ const int btn_design[btnSize][4] = {
     { -1 },                                        // btnPTT - not connected here
 #elif VERSION_TYPE  ==  VERSION_SHIFT
     { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
-    { 9, KEY_F2,          KEY_F3,      KEY_F4},    // btnFn: F2 and F3 key
+    { 9, KEY_F5,          KEY_F6,      KEY_F9},    // btnFn: F5 (Goto) and F6 (Alternative) key
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
     {15, KEY_ESC,         'Q',         'X'},       // btnX: ESC and 'Q'uit, or Shutdown
     { -1 },                                        // btnPTT - not connected here
@@ -219,6 +219,74 @@ void wdtReset() {
 bool startBit = false;
 unsigned long startTime = 0;
 
+
+// ============================================= 
+// ============================================= 
+// ============================================= 
+uint8_t
+NMEAChecksum(const char *src, int len) noexcept
+{
+  uint8_t checksum = 0;
+  char *p = src;
+
+  /* skip the dollar sign at the beginning (the exclamation mark is
+     used by CAI302 */
+  if (p && *p && (*p == '$' || *p == '!'))
+    { p++; len--;}  // remove_prefix(1);
+
+  // for (char ch : src)
+  while (*p)  //  && (len-- > 0))
+    checksum ^= static_cast<uint8_t>(*p++);
+
+  return checksum;
+}
+
+bool
+VerifyNMEAChecksum(const char *p)
+{
+  //assert(p != nullptr);
+  if (!*p)
+    return false;
+
+  const char *asterisk = strrchr(p, '*');
+  if (asterisk == nullptr)
+    return false;
+
+  const char *checksum_string = asterisk + 1;
+  char *endptr;
+  unsigned long ReadCheckSum2 = strtoul(checksum_string, &endptr, 16);
+  if (endptr == checksum_string || *endptr != 0 || ReadCheckSum2 >= 0x100)
+    return false;
+
+  uint8_t ReadCheckSum = (unsigned char)ReadCheckSum2;
+  uint8_t CalcCheckSum = NMEAChecksum(p, asterisk - p);
+
+  return CalcCheckSum == ReadCheckSum;
+}
+
+void
+AppendNMEAChecksum(char *p)
+{
+  //assert(p != nullptr);
+  if (!*p)
+    return false;
+
+  const size_t length = strlen(p);
+  sprintf(p + length, "*%02X", NMEAChecksum(p, length));
+}
+
+void sendNMEA(const char* line) {
+    char buffer[0x100];
+   // PSRCI,R: (S)tick(R)emote(C)ontrol(I)nfo, (R)emote
+    strncpy(buffer, "$PSRCI,R,",  0x100);
+    strncat(buffer, line,  0x100);
+    AppendNMEAChecksum(buffer);
+    Serial.println(buffer);
+}
+// ============================================= 
+// ============================================= 
+// ============================================= 
+
 void setup() {
 #ifdef WITH_SERIAL
   Serial.begin(9600);
@@ -239,6 +307,7 @@ void setup() {
   button[btnEnter].update();
   
 /*  */
+
 // ============================================= 
 // ============================================= 
 // ============================================= 
@@ -301,7 +370,8 @@ void loop() {
   if (!startBit && (time-startTime > start_wait)) {
     startBit = true;
 #ifdef WITH_SERIAL
-    Serial.println("Start...");
+    // Serial.println("$PSRDI,R,Start");
+    sendNMEA("Start");
     // /* TEST */ Keyboard.write('Z');
 #endif  // WITH_SERIAL
   } else {
@@ -319,14 +389,19 @@ void loop() {
   */
 #endif
 #ifdef WITH_SERIAL
+char buffer[0x100];
+buffer[0] = 0;
   switch (char c = Serial.read()) {  // one char allowed only
-    case 'v': Serial.println(Version);break;
-    case 'd': Serial.println(Device);break;
-    case 'u': Serial.println(Date);break;
-    case 'f': Serial.println(FileName);break;
-    default: if (isprint(c)) Serial.println(c);
+    case 'v': sprintf(buffer, "Version,%s", Version);break;
+    case 'd': sprintf(buffer, "Device,%s", Device);break;
+    case 'u': sprintf(buffer, "Date,%s", Date);break;
+    case 'f': sprintf(buffer, "Filename,%s", FileName);break;
+    default: // if (isprint(c)) Serial.println(c);
+              if (isprint(c)) sprintf(buffer, "Key,%c", c);
           break;
   } 
+  if (*buffer) 
+    sendNMEA(buffer);
 #endif  // WITH_SERIAL
 }
 
@@ -364,7 +439,7 @@ void onReset(PushButton& btn){
   if (!button[btnSTF].isPressed()) {
     if (millis()-startTime > start_delay) {
 #ifdef WITH_SERIAL
-    Serial.println("Reset");
+    sendNMEA("Reset");
     // /* TEST */ Keyboard.write('R');
 #endif  // WITH_SERIAL
     delay(100);
