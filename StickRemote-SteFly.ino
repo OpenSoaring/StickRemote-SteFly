@@ -59,6 +59,7 @@ the sketch uses libraries from
 #ifdef VERSION_SHIFT
 bool ShiftPressed = false;
 unsigned long ShiftPressedTime = 0;
+unsigned long DblClickTime = 0;
 #endif  
 #define USE_STF_TOGGLE
 
@@ -87,9 +88,9 @@ const int button_hold_threshold = 900;
 const int enter_hold_threshold  = 2000;
 const int button_long_hold      = 5000;  // = 5 seconds
 const int joy_hold_threshold    = 80;
+const int dblclick_threshold    = 500;
 const unsigned long start_delay = 500;
-const int dblclick_threshold    = 300;
-const unsigned int start_wait   = 2000;
+const unsigned int start_wait   = 1000;  // 2000;
 
 const int MouseDistance = 4;     // mouse one step (-> mouse speed and accurancy)
 const int mouse_speed_switch = 800;   // faster mouse after this time (in ms)
@@ -155,21 +156,25 @@ const int y = MouseDistance;
 ------------------------------------------------------------------*/
 const int btn_design[btnSize][4] = {
    // Pin,short pressed    >= 1 Second  very long (not used up to now) 
-    { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
 #if VERSION_TYPE  ==  VERSION_EXT
+    { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
     { 9, 0,               'E',         0},         // btnFn: mouse switch (and 'P')
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
     {15, KEY_ESC,         'Q',         'X'},       // btnX: ESC and 'Q'uit, or Shutdown
+    { -1 },                                        // btnPTT - not connected here
 #elif VERSION_TYPE  ==  VERSION_SHIFT
-    { 9, '1',             '2',         '3'},       // btnFn:
+    { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
+    { 9, KEY_F2,          KEY_F3,      KEY_F4},    // btnFn: F2 and F3 key
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
     {15, KEY_ESC,         'Q',         'X'},       // btnX: ESC and 'Q'uit, or Shutdown
+    { -1 },                                        // btnPTT - not connected here
 #else
+    { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
     { 9, 0,               0,           0},         // btnFn: mouse switch (and 'P')
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
-    {15, KEY_ESC,         0,           0},       // btnX: ESC and 'Q'uit, or Shutdown
+    {15, KEY_ESC,         0,           0},         // btnX: ESC and 'Q'uit, or Shutdown
+    { -1 },                                        // btnPTT - not connected here
 #endif
-    { 0, 0,               0,           0},         // btnPTT - not connected here
 
 //   Pin,JOY_KEY           JOY_X        JOY_Y
     { 2, KEY_UP_ARROW,    0,           -y},        // joyUp
@@ -231,6 +236,8 @@ void setup() {
     delay(200);
   }
 
+  button[btnEnter].update();
+  
 /*  */
 // ============================================= 
 // ============================================= 
@@ -287,24 +294,29 @@ void setup() {
   startTime = millis(); // overflow after ~50 days
 }
 
+unsigned long test_time = 0;
+
 void loop() {
   unsigned long time = millis();
   if (!startBit && (time-startTime > start_wait)) {
     startBit = true;
 #ifdef WITH_SERIAL
     Serial.println("Start...");
+    // /* TEST */ Keyboard.write('Z');
 #endif  // WITH_SERIAL
   } else {
     for (int i=0;i<btnSize;i++)
       button[i].update();
-  
-    if (ShiftPressedTime > 0 && time - ShiftPressedTime >= dblclick_threshold) {
-        ShiftPressedTime = 0;
-    }
   }
 
 #if VERSION_TYPE > VERSION_OLD
   wdtReset();
+  /*
+  if (time - test_time > 1000) {
+    test_time = time;
+    Serial.println(Date);
+  }
+  */
 #endif
 #ifdef WITH_SERIAL
   switch (char c = Serial.read()) {  // one char allowed only
@@ -353,6 +365,7 @@ void onReset(PushButton& btn){
     if (millis()-startTime > start_delay) {
 #ifdef WITH_SERIAL
     Serial.println("Reset");
+    // /* TEST */ Keyboard.write('R');
 #endif  // WITH_SERIAL
     delay(100);
     exit(1);
@@ -463,23 +476,35 @@ void onXRelease(PushButton& btn) {
   x_repeat = 0;
 }
 
-void onSTF_switch(PushButton& btn){
+void onSTF_switch(PushButton& btn) {
 
 #ifdef VERSION_SHIFT
-  int ShiftTime = (ShiftPressedTime > 0) ? millis() - ShiftPressedTime : 0;
+  unsigned long time = millis();
+  int ShiftTime = (ShiftPressedTime > 0) ? time - ShiftPressedTime :
+    dblclick_threshold + 1;
  
   bool released = ShiftTime >= dblclick_threshold;
   ShiftPressed = button[btnSTF].isPressed();
   mouse_active = ShiftPressed;
-  if (!ShiftPressed)
+  if (!ShiftPressed) {
+      // /* TEST */ Keyboard.write('1');
     return;
-   
-  if (ShiftPressedTime == 0) {
-      ShiftPressedTime = millis();
+  }
+  if (released) {
+    ShiftPressedTime = time;
+    // /* TEST */ Keyboard.write('x');
+    // /* TEST */ Serial.println(ShiftPressedTime);
+    return;
+  }   
+   /* No DblClick inside 1 second*/
+   if (time-DblClickTime < 1000) {
+      // /* TEST */ Serial.println("No DblClick");
       return;
-  }    
+   } 
+   DblClickTime = time;
+  // /* TEST */ Keyboard.write('d');
+  // /* TEST */ Serial.println("DblClick");
  #endif
- // Serial.println("DblClick");
 
 #ifdef USE_STF_TOGGLE
   // use a BUTTON to switch between Vario or Speed To Fly mode
