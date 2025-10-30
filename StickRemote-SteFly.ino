@@ -283,6 +283,39 @@ void sendNMEA(const char* line) {
     AppendNMEAChecksum(buffer);
     Serial.println(buffer);
 }
+
+void sendKey(const unsigned char key) {
+    char buffer[0x100];
+
+    Keyboard.write(key);
+   // PSRCI,R: (S)tick(R)emote(C)ontrol(K)ey, (R)emote
+    strncpy(buffer, "$PSRCK,R,",  0x100);
+    int len = strlen(buffer); 
+    switch(key) {
+      case KEY_F1: strncat(buffer, "F1", 0x100); break;
+      case KEY_F2: strncat(buffer, "F2", 0x100); break;
+      case KEY_F3: strncat(buffer, "F3", 0x100); break;
+      case KEY_F4: strncat(buffer, "F4", 0x100); break;
+      case KEY_F5: strncat(buffer, "F5", 0x100); break;
+      case KEY_F6: strncat(buffer, "F6", 0x100); break;
+      case KEY_RETURN: strncat(buffer, "Return", 0x100); break;
+      case KEY_ESC: strncat(buffer, "Esc", 0x100); break;
+      case KEY_UP_ARROW: strncat(buffer, "Up", 0x100); break;
+      case KEY_DOWN_ARROW: strncat(buffer, "Down", 0x100); break;
+      case KEY_LEFT_ARROW: strncat(buffer, "Left", 0x100); break;
+      case KEY_RIGHT_ARROW: strncat(buffer, "Right", 0x100); break;
+
+      default: { 
+        if (isalnum(key)) strncat(buffer, &key,  1);
+        else *buffer = 0;
+      }
+      break;
+    }
+    if (*buffer) {
+      AppendNMEAChecksum(buffer);
+      Serial.println(buffer);
+    }
+}
 // ============================================= 
 // ============================================= 
 // ============================================= 
@@ -372,7 +405,7 @@ void loop() {
 #ifdef WITH_SERIAL
     // Serial.println("$PSRDI,R,Start");
     sendNMEA("Start");
-    // /* TEST */ Keyboard.write('Z');
+    // /* TEST */ sendKey('Z');
 #endif  // WITH_SERIAL
   } else {
     for (int i=0;i<btnSize;i++)
@@ -414,7 +447,8 @@ void onEnter(PushButton& btn){
       Mouse.click(MOUSE_LEFT);
     else {
       if (btn_design[0][KEY_PRESSED]) {
-        Keyboard.write(btn_design[0][KEY_PRESSED]);
+        // sendKey(btn_design[0][KEY_PRESSED]);
+        sendKey(btn_design[0][KEY_PRESSED]);
       }
     }
 }
@@ -428,19 +462,20 @@ void onMouseMode(PushButton& btn){
 void onButtonReleased(PushButton& btn){
   int index = &btn - button;
   if (btn_design[index][KEY_PRESSED]) {
-    Keyboard.write(btn_design[index][KEY_PRESSED]);
+    sendKey(btn_design[index][KEY_PRESSED]);
+    
   }
 }
 
 void onReset(PushButton& btn){
   if (btn_design[0][KEY_LONG]) {
-    Keyboard.write(btn_design[0][KEY_LONG]);
+    sendKey(btn_design[0][KEY_LONG]);
   }
   if (!button[btnSTF].isPressed()) {
     if (millis()-startTime > start_delay) {
 #ifdef WITH_SERIAL
     sendNMEA("Reset");
-    // /* TEST */ Keyboard.write('R');
+    // /* TEST */ sendKey('R');
 #endif  // WITH_SERIAL
     delay(100);
     exit(1);
@@ -450,22 +485,22 @@ void onReset(PushButton& btn){
 
 void onBtnHeldTopLeft(PushButton& btn){
   int index = &btn - button;
-  Keyboard.write(btn_design[index][KEY_LONG]);
+  sendKey(btn_design[index][KEY_LONG]);
 }
 
 void onButtonLong(PushButton& btn){
   int index = &btn - button;
   if (btn_design[index][KEY_LONG]) {
-    Keyboard.write(btn_design[index][KEY_LONG]);
+    sendKey(btn_design[index][KEY_LONG]);
   }
 }
  
 void onButtonVeryLong(PushButton& btn){
   int index = &btn - button;
   if (btn_design[index][KEY_VERYLONG]) {
-    Keyboard.write(btn_design[index][KEY_VERYLONG]);
+    sendKey(btn_design[index][KEY_VERYLONG]);
   } else if (btn_design[index][KEY_LONG]) {
-    Keyboard.write(btn_design[index][KEY_LONG]);
+    sendKey(btn_design[index][KEY_LONG]);
   }
 } 
 
@@ -495,7 +530,7 @@ void onJoyArrow(PushButton& btn) { //
       if (mouse_active) {
         Mouse.move(btn_design[index][JOY_X], btn_design[index][JOY_Y]);
       } else { // mouse not active
-        Keyboard.write(btn_design[index][JOY_KEY]);
+        sendKey(btn_design[index][JOY_KEY]);
       }
       switch(repeat_mode[index]) {
         case 0: 
@@ -546,7 +581,7 @@ void onXRelease(PushButton& btn) {
   char key = btn_design[btnX][KEY_PRESSED];
 #endif
   if (key) {
-    Keyboard.write(key); 
+    sendKey(key); 
   }
   x_repeat = 0;
 }
@@ -562,12 +597,12 @@ void onSTF_switch(PushButton& btn) {
   ShiftPressed = button[btnSTF].isPressed();
   mouse_active = ShiftPressed;
   if (!ShiftPressed) {
-      // /* TEST */ Keyboard.write('1');
+      // /* TEST */ sendKey('1');
     return;
   }
   if (released) {
     ShiftPressedTime = time;
-    // /* TEST */ Keyboard.write('x');
+    // /* TEST */ sendKey('x');
     // /* TEST */ Serial.println(ShiftPressedTime);
     return;
   }   
@@ -577,7 +612,7 @@ void onSTF_switch(PushButton& btn) {
       return;
    } 
    DblClickTime = time;
-  // /* TEST */ Keyboard.write('d');
+  // /* TEST */ sendKey('d');
   // /* TEST */ Serial.println("DblClick");
  #endif
 
@@ -591,5 +626,5 @@ void onSTF_switch(PushButton& btn) {
     STF_key = (btn_design[btnSTF][KEY_PRESSED]);
   else
     STF_key = (btn_design[btnSTF][KEY_LONG]); 
-  Keyboard.write(STF_key);
+  sendKey(STF_key);
 }
