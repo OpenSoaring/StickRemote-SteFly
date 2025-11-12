@@ -48,7 +48,7 @@ the sketch uses libraries from
 #if VERSION_TYPE >= VERSION_NEW
 # include "avr/wdt.h"
 # define WITH_WATCHDOG
-// # define WITH_SERIAL
+# define WITH_SERIAL
 // # define EXTEND_SERIAL
 #endif
 
@@ -133,7 +133,7 @@ const int x = MouseDistance;
 const int y = MouseDistance;
 
 #if defined(WITH_SERIAL) && defined(EXTEND_SERIAL)
-const unsigned int read_buffer_length = 0x400;
+const unsigned int read_buffer_length = 0x200;
 int read_buffer_pointer = 0;
 int read_buffer_start = -1;
 char read_buffer[read_buffer_length];
@@ -276,19 +276,19 @@ AppendNMEAChecksum(char *p)
 {
   //assert(p != nullptr);
   if (!*p)
-    return false;
+    return;
 
   const size_t length = strlen(p);
   sprintf(p + length, "*%02X", NMEAChecksum(p, length));
 }
 
 void sendNMEA(const char* line) {
-    char buffer[0x100];
+    char send_buffer[0x100];
    // PSRCI,R: (S)tick(R)emote(C)ontrol(I)nfo, (R)emote
-    strncpy(buffer, "$PSRCI,R,",  0x100);
-    strncat(buffer, line,  0x100);
-    AppendNMEAChecksum(buffer);
-    Serial.println(buffer);
+    strncpy(send_buffer, "$PSRCI,R,",  0x100);
+    strncat(send_buffer, line,  0x100);
+    AppendNMEAChecksum(send_buffer);
+    Serial.println(send_buffer);
 }
 
 void sendKey(const unsigned char key) {
@@ -431,14 +431,16 @@ void loop() {
 
 #ifdef WITH_SERIAL
 
+  const int buffer_size = 0x80;
+  char buffer[buffer_size];
+  buffer[0] = 0;
   char c = Serial.read();
-  if (isprint(c)) {
 
-    char buffer[0x100];
+  if (isprint(c) || (c=='\n')) {
+  // if (c=='\n') Serial.println("NL2");  /* TEST */
 #if defined(EXTEND_SERIAL)
   read_buffer[read_buffer_pointer++] = c;
   read_buffer_pointer %= read_buffer_length;
-
   switch (c) {  // one char allowed only
     case '\n': {
        int i = 0;
@@ -447,40 +449,47 @@ void loop() {
         for (int p=read_buffer_start; p!=read_buffer_pointer; ) {
            buffer[i++] = read_buffer[p++];
           p %= read_buffer_length;
+          if (i >= buffer_size) {
+            i = 0;
+            break;
+          } 
         }
-        if (i>0 && i < 0x100) {
-          buffer[i] == 0;
-          buffer[i-3] == 0; /* TEST!!!*/     
-          sendNMEA(buffer+6);
-        }
+        if (i > 8) {
+          buffer[i] = 0;
+          buffer[i-3] = 0; ///  TEST!!!
+ //         sendNMEA(buffer + 8);  // +6);
+        } 
+        // else Serial.println(i); /*TEST */
         read_buffer_start = -1;
-    }
-    break; 
+      }
+      break;
     case '$': read_buffer_start = read_buffer_pointer > 0 ?
-                  read_buffer_pointer -1 : read_buffer_length-1;
-    break;
-    default:  break;
-  } 
+                  read_buffer_pointer-1 : read_buffer_length-1;
+                  
+              // sendNMEA("$x");  /* TEST */
+      break;
+    default: break;
+  }
 
   if (read_buffer_start >= 0)
     return; 
-
+// #else  // defined(EXTEND_SERIAL)
 #endif  // defined(EXTEND_SERIAL)
 
 // char buffer[0x100];
-buffer[0] = 0;
   switch (c) {  // one char allowed only
     case 'v': sprintf(buffer, "Version,%s", Version);break;
     case 'd': sprintf(buffer, "Device,%s", Device);break;
     case 'u': sprintf(buffer, "Date,%s", Date);break;
     case 'f': sprintf(buffer, "Filename,%s", FileName);break;
-    default: 
-             // if (isprint(c)) sprintf(buffer, "Key,%c", c);
-          break;
+    default:  
+             if (isprint(c)) sprintf(buffer, "Key,%c", c);
+             break; 
   } 
   if (*buffer) 
     sendNMEA(buffer);
 
+// #endif  // defined(EXTEND_SERIAL)
   }
 #endif  // WITH_SERIAL
 }
@@ -521,7 +530,7 @@ void onReset(PushButton& btn){
   if (!button[btnSTF].isPressed()) {
     if (millis()-startTime > start_delay) {
 #ifdef WITH_SERIAL
-    sendNMEA("Reset");
+//    sendNMEA("Reset");
     // /* TEST */ sendKey('R');
 #endif  // WITH_SERIAL
     delay(100);
