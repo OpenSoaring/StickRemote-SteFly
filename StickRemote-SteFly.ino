@@ -48,7 +48,8 @@ the sketch uses libraries from
 #if VERSION_TYPE >= VERSION_NEW
 # include "avr/wdt.h"
 # define WITH_WATCHDOG
-# define WITH_SERIAL
+// # define WITH_SERIAL
+// # define EXTEND_SERIAL
 #endif
 
 #if VERSION_TYPE >= VERSION_EXT
@@ -131,6 +132,12 @@ enum {KEY_PIN, KEY_PRESSED, KEY_LONG, KEY_VERYLONG};
 const int x = MouseDistance;
 const int y = MouseDistance;
 
+#if defined(WITH_SERIAL) && defined(EXTEND_SERIAL)
+const unsigned int read_buffer_length = 0x400;
+int read_buffer_pointer = 0;
+int read_buffer_start = -1;
+char read_buffer[read_buffer_length];
+#endif  // Serial
 /* -----------------------------------------------------------------
  define press (short press) and hold (long press) functions for each button
  settings in XCSoar default.xci are
@@ -421,20 +428,60 @@ void loop() {
   }
   */
 #endif
+
 #ifdef WITH_SERIAL
-char buffer[0x100];
+
+  char c = Serial.read();
+  if (isprint(c)) {
+
+    char buffer[0x100];
+#if defined(EXTEND_SERIAL)
+  read_buffer[read_buffer_pointer++] = c;
+  read_buffer_pointer %= read_buffer_length;
+
+  switch (c) {  // one char allowed only
+    case '\n': {
+       int i = 0;
+       if ((read_buffer_start >= 0) &&
+        read_buffer[read_buffer_start] == '$')
+        for (int p=read_buffer_start; p!=read_buffer_pointer; ) {
+           buffer[i++] = read_buffer[p++];
+          p %= read_buffer_length;
+        }
+        if (i>0 && i < 0x100) {
+          buffer[i] == 0;
+          buffer[i-3] == 0; /* TEST!!!*/     
+          sendNMEA(buffer+6);
+        }
+        read_buffer_start = -1;
+    }
+    break; 
+    case '$': read_buffer_start = read_buffer_pointer > 0 ?
+                  read_buffer_pointer -1 : read_buffer_length-1;
+    break;
+    default:  break;
+  } 
+
+  if (read_buffer_start >= 0)
+    return; 
+
+#endif  // defined(EXTEND_SERIAL)
+
+// char buffer[0x100];
 buffer[0] = 0;
-  switch (char c = Serial.read()) {  // one char allowed only
+  switch (c) {  // one char allowed only
     case 'v': sprintf(buffer, "Version,%s", Version);break;
     case 'd': sprintf(buffer, "Device,%s", Device);break;
     case 'u': sprintf(buffer, "Date,%s", Date);break;
     case 'f': sprintf(buffer, "Filename,%s", FileName);break;
-    default: // if (isprint(c)) Serial.println(c);
-              if (isprint(c)) sprintf(buffer, "Key,%c", c);
+    default: 
+             // if (isprint(c)) sprintf(buffer, "Key,%c", c);
           break;
   } 
   if (*buffer) 
     sendNMEA(buffer);
+
+  }
 #endif  // WITH_SERIAL
 }
 
