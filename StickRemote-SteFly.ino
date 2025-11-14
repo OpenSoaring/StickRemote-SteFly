@@ -19,45 +19,54 @@ the sketch uses libraries from
 * https://github.com/r89m/Button               - part of PushButton
 * https://github.com/r89m/PushButton 
 -----------------------------------------------------------------------------*/
-// possible version types: VERSION_OLD (= v1.0), VERSION_NEW (= v2.0) or VERSION_EXT (= v2.1)
+// possible version types: VERSION_OLD (= v1.0), VERSION_2 (= v2.0) or VERSION_2_1 (= v2.1)
 #define VERSION_OLD 0  // equivalent to the previous version 'Stick_Remote_Control_br'
                        // the differce is the use of Arduino IDE 2, and other libraries
                        // and a complete different code flow, so I expect a better 
                        // debounce behavior of the keys here
                        // Version: v1.0
-#define VERSION_NEW 1  // previous version with added watchdog only and 
+#define VERSION_2   1  // previous version with added watchdog only and 
                        // (WatchDog-)Reset at long pressed Enter button (joy
                        // stick button) and with diagonal movement of the mouse
                        // and the activation of the serial interface
                        // Version: v2.0
-#define VERSION_EXT 2  // extended version with WatchDog and additional key 'Q' (= quit)
+#define VERSION_2_1 2  // extended version with WatchDog and additional key 'Q' (= quit)
                        // on long pressed X button (> 1sec,  < 4sec), 'X' (= shutdown) on very
                        // long pressed X button (> 4sec), 'E' (= btn_design) on long pressed.
                        // (> 1sec) Fn button
                        // Mouse moves at an increased speed after ~0.8 sec
                        // Version: v2.1
-#define VERSION_SHIFT 3  // extended version with shift key 
+#define VERSION_3   3  // extended version with shift key 
                        // Version: v3.0
 // -----------------------------------------------------------
-#define VERSION_TYPE    VERSION_SHIFT  // OLD, NEW or EXT
+/*/
+#define VERSION_TYPE    VERSION_2_1  // OLD, NEW or EXT or SHIFT
+/*/
+#define VERSION_TYPE    VERSION_3
+/**/
 // -----------------------------------------------------------
 #include <Mouse.h>
 #include <Keyboard.h>
 #include <PushButton.h>
 
-#if VERSION_TYPE >= VERSION_NEW
+#if VERSION_TYPE >= VERSION_2
 # include "avr/wdt.h"
-# define WITH_WATCHDOG
+// # define WITH_WATCHDOG
 # define WITH_SERIAL
-// # define EXTEND_SERIAL
 #endif
 
-#if VERSION_TYPE >= VERSION_EXT
+#if VERSION_TYPE >= VERSION_2_1
 # define MOUSE_ACCELERATOR
 #endif
 
+#if VERSION_TYPE >= VERSION_3
+# define WITH_SERIAL_2
+// # define EXTEND_SERIAL
+# define WAIT_FOR_ENTER
+#endif
+
 // disable the next define if you have a BUTTON instead a TOGGLE SWITCH: 
-#ifdef VERSION_SHIFT
+#ifdef VERSION_3
 bool ShiftPressed = false;
 unsigned long ShiftPressedTime = 0;
 unsigned long DblClickTime = 0;
@@ -67,16 +76,18 @@ unsigned long DblClickTime = 0;
 const char* Device  = "Stick Remote Control (SteFly)";
 const char* Date    = __DATE__;  // = Compile Date: "2025-01-24";
 #if VERSION_TYPE  == VERSION_OLD
-  const char* Version = "v1.0";
-#elif VERSION_TYPE  == VERSION_NEW
-  const char* Version = "v2.0";
-#elif VERSION_TYPE  == VERSION_EXT
-  const char* Version = "v2.1";
-#elif VERSION_TYPE  == VERSION_SHIFT
-  const char* Version = "v3.0";
+  const char* Version = "v1.0.1";
+#elif VERSION_TYPE  == VERSION_2
+  const char* Version = "v2.0.1";
+#elif VERSION_TYPE  == VERSION_2_1
+  const char* Version = "v2.1.1";
+#elif VERSION_TYPE  == VERSION_3
+  const char *Version = "v3.0";
 #else
   const char* Version = "unknown";
 #endif
+
+const char *VersionStr = "Version,";
 
 // check Linux delimiter and/or Window delimiter: 
 const char* FileName  = (strrchr(__FILE__, '/') ?                     \
@@ -91,7 +102,7 @@ const int button_long_hold      = 5000;  // = 5 seconds
 const int joy_hold_threshold    = 80;
 const int dblclick_threshold    = 500;
 const unsigned long start_delay = 500;
-const unsigned int start_wait   = 1000;  // 2000;
+const unsigned int start_wait   = 2000;  // 2000;
 
 const int MouseDistance = 4;     // mouse one step (-> mouse speed and accurancy)
 const int mouse_speed_switch = 800;   // faster mouse after this time (in ms)
@@ -115,12 +126,12 @@ enum {
 
 // define variables
 boolean mouse_active = false;
-int first_pressed = 0;
 int joy_active = 0;
 int key_bounce = 0;
 int joy_counter[btnSize]         = {0,0,0,0,0,0,0,0,0,0};
 int repeat_mode[btnSize]         = {0,0,0,0,0,0,0,0,0,0};
 unsigned long btn_timer[btnSize] = {0,0,0,0,0,0,0,0,0,0};
+bool first_pressed[btnSize]      = {0,0,0,0,0,0,0,0,0,0};
 int x_repeat = 0;
 
 unsigned long timeNow = 0;
@@ -132,12 +143,18 @@ enum {KEY_PIN, KEY_PRESSED, KEY_LONG, KEY_VERYLONG};
 const int x = MouseDistance;
 const int y = MouseDistance;
 
-#if defined(WITH_SERIAL) && defined(EXTEND_SERIAL)
-const unsigned int read_buffer_length = 0x200;
-int read_buffer_pointer = 0;
-int read_buffer_start = -1;
-char read_buffer[read_buffer_length];
-#endif  // Serial
+#if defined(WITH_SERIAL) 
+  const int buffer_size = 0x80;
+  char send_buffer[buffer_size];
+  char nmea_buffer[buffer_size];
+  char send_info[buffer_size];
+# if defined(EXTEND_SERIAL)
+    const unsigned int read_buffer_length = 0x200;
+    int read_buffer_pointer = 0;
+    int read_buffer_start = -1;
+    char read_buffer[read_buffer_length];
+# endif  // EXTEND_SERIAL
+#endif  // WITH_SERIAL
 /* -----------------------------------------------------------------
  define press (short press) and hold (long press) functions for each button
  settings in XCSoar default.xci are
@@ -163,23 +180,23 @@ char read_buffer[read_buffer_length];
 ------------------------------------------------------------------*/
 const int btn_design[btnSize][4] = {
    // Pin,short pressed    >= 1 Second  very long (not used up to now) 
-#if VERSION_TYPE  ==  VERSION_EXT
+#if VERSION_TYPE  ==  VERSION_2_1
     { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
     { 9, 0,               'E',         0},         // btnFn: mouse switch (and 'P')
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
-    {15, KEY_ESC,         'Q',         'X'},       // btnX: ESC and 'Q'uit, or Shutdown
+    {15, KEY_ESC,         'X',         0},         // btnX: ESC and 'X' for Shutdown (or Quit)
     { -1 },                                        // btnPTT - not connected here
-#elif VERSION_TYPE  ==  VERSION_SHIFT
+#elif VERSION_TYPE  ==  VERSION_3
     { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
     { 9, KEY_F5,          KEY_F6,      KEY_F9},    // btnFn: F5 (Goto) and F6 (Alternative) key
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
-    {15, KEY_ESC,         'Q',         'X'},       // btnX: ESC and 'Q'uit, or Shutdown
+    {15, KEY_ESC,         'X',         0},         // btnX: ESC and 'X' for Shutdown (or Quit)
     { -1 },                                        // btnPTT - not connected here
 #else
     { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
     { 9, 0,               0,           0},         // btnFn: mouse switch (and 'P')
     {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
-    {15, KEY_ESC,         0,           0},         // btnX: ESC and 'Q'uit, or Shutdown
+    {15, KEY_ESC,         0,           0},         // btnX: ESC only 
     { -1 },                                        // btnPTT - not connected here
 #endif
 
@@ -230,6 +247,8 @@ unsigned long startTime = 0;
 // ============================================= 
 // ============================================= 
 // ============================================= 
+#if defined(WITH_SERIAL) 
+
 uint8_t
 NMEAChecksum(const char *src, int len) noexcept
 {
@@ -282,46 +301,44 @@ AppendNMEAChecksum(char *p)
   sprintf(p + length, "*%02X", NMEAChecksum(p, length));
 }
 
-void sendNMEA(const char* line) {
-    char send_buffer[0x100];
-   // PSRCI,R: (S)tick(R)emote(C)ontrol(I)nfo, (R)emote
-    strncpy(send_buffer, "$PSRCI,R,",  0x100);
-    strncat(send_buffer, line,  0x100);
-    AppendNMEAChecksum(send_buffer);
-    Serial.println(send_buffer);
+void sendNMEA(const char set, const char* line) {
+   // PSRC(%set%),R: (S)tick(R)emote(C)ontrol(%set%)field, (R)emote
+    snprintf(nmea_buffer,buffer_size,"$PSRC%c,R,%s", set, line);
+    AppendNMEAChecksum(nmea_buffer);
+    Serial.println(nmea_buffer);
 }
+#endif // defined(WITH_SERIAL) 
 
-void sendKey(const unsigned char key) {
-    char buffer[0x100];
-
+void sendKey(const unsigned int key) {
     Keyboard.write(key);
-   // PSRCI,R: (S)tick(R)emote(C)ontrol(K)ey, (R)emote
-    strncpy(buffer, "$PSRCK,R,",  0x100);
-    int len = strlen(buffer); 
+#if defined(WITH_SERIAL) 
     switch(key) {
-      case KEY_F1: strncat(buffer, "F1", 0x100); break;
-      case KEY_F2: strncat(buffer, "F2", 0x100); break;
-      case KEY_F3: strncat(buffer, "F3", 0x100); break;
-      case KEY_F4: strncat(buffer, "F4", 0x100); break;
-      case KEY_F5: strncat(buffer, "F5", 0x100); break;
-      case KEY_F6: strncat(buffer, "F6", 0x100); break;
-      case KEY_RETURN: strncat(buffer, "Return", 0x100); break;
-      case KEY_ESC: strncat(buffer, "Esc", 0x100); break;
-      case KEY_UP_ARROW: strncat(buffer, "Up", 0x100); break;
-      case KEY_DOWN_ARROW: strncat(buffer, "Down", 0x100); break;
-      case KEY_LEFT_ARROW: strncat(buffer, "Left", 0x100); break;
-      case KEY_RIGHT_ARROW: strncat(buffer, "Right", 0x100); break;
+      case KEY_F1: strcpy(send_buffer, "F1"); break;
+      case KEY_F2: strcpy(send_buffer, "F2"); break;
+      case KEY_F3: strcpy(send_buffer, "F3"); break;
+      case KEY_F4: strcpy(send_buffer, "F4"); break;
+      // case KEY_F5: strcpy(send_buffer, "F5"); break;
+      case KEY_F6: strcpy(send_buffer, "F6"); break;
+      case KEY_RETURN: strcpy(send_buffer, "Return"); break;
+      case KEY_ESC: strcpy(send_buffer, "Esc"); break;
+      case KEY_UP_ARROW: strcpy(send_buffer, "Up"); break;
+      case KEY_DOWN_ARROW: strcpy(send_buffer, "Down"); break;
+      case KEY_LEFT_ARROW: strcpy(send_buffer, "Left"); break;
+      case KEY_RIGHT_ARROW: strcpy(send_buffer, "Right"); break;
 
       default: { 
-        if (isalnum(key)) strncat(buffer, &key,  1);
-        else *buffer = 0;
+        if (isalnum(key)) {
+            send_buffer[0] =(char)key;
+            send_buffer[1] = 0;
+        } else send_buffer[0] = 0;
       }
       break;
     }
-    if (*buffer) {
-      AppendNMEAChecksum(buffer);
-      Serial.println(buffer);
+    if (*send_buffer) {
+      sendNMEA('K', send_buffer);
+      send_buffer[0] = 0;
     }
+#endif // defined(WITH_SERIAL2) 
 }
 // ============================================= 
 // ============================================= 
@@ -332,6 +349,7 @@ void setup() {
   Serial.begin(9600);
 #endif  // WITH_SERIAL
 
+#ifdef WAIT_FOR_ENTER
 // ============================================= 
 // ============================================= 
 // ============================================= 
@@ -339,10 +357,12 @@ void setup() {
   // pinMode( btn_design[btnEnter][PIN], INPUT); 
   pinMode( btn_design[btnEnter][PIN], INPUT_PULLUP); 
 /* */
+#ifdef  WITH_WATCHDOG
   while (!digitalRead(btn_design[btnEnter][PIN])) { // = isPressed
     wdtReset();
     delay(200);
   }
+#endif
 
   button[btnEnter].update();
   
@@ -351,12 +371,15 @@ void setup() {
 // ============================================= 
 // ============================================= 
 // ============================================= 
+#endif
+
+  strcpy(send_info, "zzzzzzzzzzzzzzzzzzzzzzzz");
 #ifdef  WITH_WATCHDOG
   watchdogInit();
 #endif  
 
   // btnEnter:
-/*/
+/**/
   button[btnEnter].onRelease(0,enter_hold_threshold-1,onEnter);
   button[btnEnter].onRelease(enter_hold_threshold,onReset);
  /*/
@@ -371,10 +394,10 @@ void setup() {
   }
 
   // btnFn
-#if VERSION_TYPE  ==  VERSION_EXT
+#if VERSION_TYPE  ==  VERSION_2_1
   button[btnFn].onRelease(0,button_hold_threshold-1, onMouseMode);
   button[btnFn].onHold(button_hold_threshold, onButtonLong);
-#elif VERSION_TYPE  ==  VERSION_SHIFT
+#elif VERSION_TYPE  ==  VERSION_3
   button[btnFn].onRelease(0,button_hold_threshold-1, onButtonReleased);
   button[btnFn].onHold(button_hold_threshold, onButtonLong);
 #else
@@ -386,10 +409,13 @@ void setup() {
   button[btnMenu].onHold(button_hold_threshold, onButtonLong);
 
   // btnX with Short, Long and VeryLong press
-#if VERSION_TYPE  >=  VERSION_EXT
-  button[btnX].onHoldRepeat(80, 10, onXRepeat);
-#endif
+#if VERSION_TYPE  >=  VERSION_2_1
+//  button[btnX].onHoldRepeat(80, 10, onXRepeat);
+  button[btnX].onRelease(0,button_hold_threshold-1,onButtonReleased);
+  button[btnX].onHold(button_hold_threshold, onButtonLong);
+#else
   button[btnX].onRelease(onXRelease);
+#endif
 
   // btnSTF
   button[btnSTF].onPress(onSTF_switch);
@@ -407,19 +433,31 @@ unsigned long test_time = 0;
 
 void loop() {
   unsigned long time = millis();
-  if (!startBit && (time-startTime > start_wait)) {
-    startBit = true;
-#ifdef WITH_SERIAL
+#if VERSION_TYPE  <  VERSION_3
+  for (int i=0;i<btnSize;i++)
+    button[i].update();
+#else
+//  if (!startBit && (time-startTime > start_wait)) {
+  if (!startBit) {
+      // if (Serial.c.connected)
+      if (time-startTime > start_wait) {
+          startBit = true;
+#ifdef WITH_SERIAL_2
     // Serial.println("$PSRDI,R,Start");
-    sendNMEA("Start");
+    sendNMEA('I',"Start");
     // /* TEST */ sendKey('Z');
 #endif  // WITH_SERIAL
+      }
+      // else
+      //    return;
   } else {
     for (int i=0;i<btnSize;i++)
       button[i].update();
   }
+#endif
 
-#if VERSION_TYPE > VERSION_OLD
+// #if VERSION_TYPE > VERSION_OLD
+#ifdef  WITH_WATCHDOG
   wdtReset();
   /*
   if (time - test_time > 1000) {
@@ -431,15 +469,13 @@ void loop() {
 
 #ifdef WITH_SERIAL
 
-  const int buffer_size = 0x80;
-  char buffer[buffer_size];
-  buffer[0] = 0;
-  char c = Serial.read();
+  send_info[0] = 0;
+  int c = Serial.read();
 
   if (isprint(c) || (c=='\n')) {
   // if (c=='\n') Serial.println("NL2");  /* TEST */
 #if defined(EXTEND_SERIAL)
-  read_buffer[read_buffer_pointer++] = c;
+  read_buffer[read_buffer_pointer++] = (char) c;
   read_buffer_pointer %= read_buffer_length;
   switch (c) {  // one char allowed only
     case '\n': {
@@ -447,7 +483,7 @@ void loop() {
        if ((read_buffer_start >= 0) &&
         read_buffer[read_buffer_start] == '$')
         for (int p=read_buffer_start; p!=read_buffer_pointer; ) {
-           buffer[i++] = read_buffer[p++];
+           send_info[i++] = read_buffer[p++];
           p %= read_buffer_length;
           if (i >= buffer_size) {
             i = 0;
@@ -455,41 +491,38 @@ void loop() {
           } 
         }
         if (i > 8) {
-          buffer[i] = 0;
-          buffer[i-3] = 0; ///  TEST!!!
- //         sendNMEA(buffer + 8);  // +6);
+          send_info[i] = 0;
+          send_info[i-3] = 0; ///  TEST!!!
+ //         sendNMEA('I', send_info + 8);  // +6);
         } 
-        // else Serial.println(i); /*TEST */
+        else Serial.println(send_info); /*TEST */
+        Serial.println(i); /*TEST */
         read_buffer_start = -1;
       }
       break;
     case '$': read_buffer_start = read_buffer_pointer > 0 ?
                   read_buffer_pointer-1 : read_buffer_length-1;
                   
-              // sendNMEA("$x");  /* TEST */
+              // sendNMEA('I',"$x");  /* TEST */
       break;
     default: break;
   }
 
-  if (read_buffer_start >= 0)
+//??  if (read_buffer_start >= 0)
     return; 
-// #else  // defined(EXTEND_SERIAL)
 #endif  // defined(EXTEND_SERIAL)
-
-// char buffer[0x100];
-  switch (c) {  // one char allowed only
-    case 'v': sprintf(buffer, "Version,%s", Version);break;
-    case 'd': sprintf(buffer, "Device,%s", Device);break;
-    case 'u': sprintf(buffer, "Date,%s", Date);break;
-    case 'f': sprintf(buffer, "Filename,%s", FileName);break;
-    default:  
-             if (isprint(c)) sprintf(buffer, "Key,%c", c);
-             break; 
-  } 
-  if (*buffer) 
-    sendNMEA(buffer);
-
-// #endif  // defined(EXTEND_SERIAL)
+    switch (c | 0x20) {  // one char allowed only
+      case 'v': sprintf(send_info, "Version,%s", Version); break;
+      case 'd': sprintf(send_info, "Device,%s", Device);break;
+      case 'u': sprintf(send_info, "Date,%s", Date);break;
+      case 'f': sprintf(send_info, "Filename,%s", FileName);break;
+      default:  
+               // if (isprint(c)) sprintf(send_info, "Key,%c", c);
+               break; 
+    } 
+    if (*send_info) {
+      sendNMEA('S',send_info);
+    }
   }
 #endif  // WITH_SERIAL
 }
@@ -509,7 +542,7 @@ void onEnter(PushButton& btn){
     }
 }
 
-#if VERSION_TYPE  !=  VERSION_SHIFT
+#if VERSION_TYPE  !=  VERSION_3
 void onMouseMode(PushButton& btn){
     mouse_active = !mouse_active;
 }
@@ -529,9 +562,8 @@ void onReset(PushButton& btn){
   }
   if (!button[btnSTF].isPressed()) {
     if (millis()-startTime > start_delay) {
-#ifdef WITH_SERIAL
-//    sendNMEA("Reset");
-    // /* TEST */ sendKey('R');
+#ifdef WITH_SERIAL_2
+    sendNMEA('I', "Reset");
 #endif  // WITH_SERIAL
     delay(100);
     exit(1);
@@ -573,9 +605,9 @@ void onJoyArrow(PushButton& btn) { //
 #endif  // VERSION_TYPE == VERSION_OLD
   if (!button[btnEnter].isPressed()) {
   unsigned current_time = millis();
-  bool first = !(first_pressed & (1 << index));
-  // first_pressed |= (1 << index) && (current_time - btn_timer[index] > 150);
-  first_pressed |= (1 << index);
+  bool first = !first_pressed[index];
+  // first_pressed[index] = current_time - btn_timer[index] > 150;
+  first_pressed[index] = true;
     if (first) {
       btn_timer[index] = current_time;
       repeat_mode[index] = 0;
@@ -609,20 +641,20 @@ void onJoyArrow(PushButton& btn) { //
 void onJoyRelease(PushButton& btn){
   int index = &btn - button;
   joy_counter[index] = 0;
-  first_pressed &= ~(1 << index);
+  first_pressed[index] = false;
   btn_timer[index] = 0; //  millis();
 }
 
-#if VERSION_TYPE  >=  VERSION_EXT
+#if VERSION_TYPE  >=  VERSION_2_1
 void onXRepeat(PushButton& btn){
   
   if (!x_repeat++)
       btn_timer[btnX] = millis();
 }
-#endif  // VERSION_TYPE  ==  VERSION_EXT
+#endif  // VERSION_TYPE  ==  VERSION_2_1
 
 void onXRelease(PushButton& btn) {
-#if  VERSION_TYPE  >=  VERSION_EXT
+#if  VERSION_TYPE  >=  VERSION_2_1
   unsigned long release_time = millis() - btn_timer[btnX];
   char key = 0;
   if (x_repeat < 3 ) 
@@ -644,7 +676,7 @@ void onXRelease(PushButton& btn) {
 
 void onSTF_switch(PushButton& btn) {
 
-#ifdef VERSION_SHIFT
+#ifdef VERSION_3
   unsigned long time = millis();
   int ShiftTime = (ShiftPressedTime > 0) ? time - ShiftPressedTime :
     dblclick_threshold + 1;
