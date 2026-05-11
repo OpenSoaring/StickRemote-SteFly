@@ -40,7 +40,7 @@ the sketch uses libraries from
                        // watchdog send 0 
                        // Version: v3.0
 // -----------------------------------------------------------
-/* */
+/* /
 #define VERSION_TYPE    VERSION_2_1  // OLD, NEW or EXT or SHIFT
 /*/
 #define VERSION_TYPE    VERSION_3
