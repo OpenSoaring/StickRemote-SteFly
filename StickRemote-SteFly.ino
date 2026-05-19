@@ -37,13 +37,21 @@ the sketch uses libraries from
                        // Mouse moves at an increased speed after ~0.8 sec
                        // Version: v2.1
 #define VERSION_3   3  // extended version with shift key, double click, serial communication
-                       // watchdog send 0 
+                       // watchdog send 0
                        // Version: v3.0
+#define VERSION_4   4  // V3 + USB-Recovery (Stufe A+B)
+                       //  - Frueher WDT-disable in .init3 (Caterina-Falle umgehen)
+                       //  - WDT-Kick ohne Keyboard.write(0) (kein USB-Traffic noetig)
+                       //  - MCUSR-Auswertung + Reset-Log im EEPROM + NMEA-Bootmsg
+                       //  - Soft Re-Enumeration via USBDevice.detach/attach
+                       //    bei USB-Suspend oder Send-Timeout (kein WDT-Reset noetig)
+                       //  - exit(1) ersetzt durch sauberen wdt-Reset
+                       // Version: v4.0
 // -----------------------------------------------------------
 /* /
 #define VERSION_TYPE    VERSION_2_1  // OLD, NEW or EXT or SHIFT
 /*/
-#define VERSION_TYPE    VERSION_3
+#define VERSION_TYPE    VERSION_4
 /**/
 // -----------------------------------------------------------
 #include <Mouse.h>
@@ -73,6 +81,18 @@ the sketch uses libraries from
 # define WITH_DBLCLICK
 #endif
 
+#if VERSION_TYPE >= VERSION_4
+// USB-Recovery-Paket. Wirkt zusammen mit (modifiziertem) Caterina-Bootloader,
+// laeuft aber auch mit Original-Caterina - dann nur eben mit 8s Wartezeit nach
+// einem WDT-Reset (was wir mit WITH_USB_REATTACH ja gerade vermeiden wollen).
+# define WITH_EARLY_WDT_DISABLE   // .init3 Hook: MCUSR=0; wdt_disable() vor setup()
+# define WITHOUT_USB_KEEPALIVE    // wdtReset() schickt kein Keyboard.write(0) mehr
+# define WITH_RESET_LOG           // MCUSR + Zaehler ins EEPROM, NMEA-Bootmsg
+# define WITH_USB_REATTACH        // sanftes Re-Enumerieren bei Suspend/Send-Stall
+# define WITH_CLEAN_RESET         // exit(1) -> wdt_enable(WDTO_15MS); while(1){}
+# define DEBUG_KEYBOARD
+#endif
+
 // disable the next define if you have a BUTTON instead a TOGGLE SWITCH: 
 #define USE_STF_TOGGLE
 
@@ -86,6 +106,8 @@ const char* Date    = __DATE__;  // = Compile Date: "2025-01-24";
   const char* Version = "v2.1.1";
 #elif VERSION_TYPE  == VERSION_3
   const char *Version = "v3.0";
+#elif VERSION_TYPE  == VERSION_4
+  const char *Version = "v4.1";
 #else
   const char* Version = "unknown";
 #endif
@@ -201,23 +223,18 @@ struct key_struct {
 // const 
 struct key_struct btn_design[btnSize]/* [4] */ = {
    // Pin,short pressed    >= 1 Second  very long (not used up to now) 
-#if VERSION_TYPE  ==  VERSION_2_1
-    { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
-    { 9, 0,               'E',         0},         // btnFn: mouse switch (and 'P')
-    {14, KEY_F1,          'M',         0},         // btnMenu: QuickMenu and AudioMenue
-    {15, KEY_ESC,         'X',         0},         // btnX: ESC and 'X' for Shutdown (or Quit)
-    { 7, 'V',             'S',         0},         // btnSTF
-#elif defined(WITH_DBLCLICK)
-    { 6, KEY_RETURN,      0,           'E'},       // btnEnter: joystick button
-/*  TEST!!!   */  
-    { 9, '5',          '6',      '1'},       // btnFn: F5 (Goto) and F6 (Alternative) key
-    {14, '7',          'M',         '2'},       // btnMenu: QuickMenu and AudioMenue
-/*/
-    { 9, KEY_F5,          KEY_F6,      '1'},       // btnFn: F5 (Goto) and F6 (Alternative) key
-    {14, KEY_F1,          'M',         '2'},       // btnMenu: QuickMenu and AudioMenue
-/*  */
-    {15, KEY_ESC,         'X',         '3'},       // btnX: ESC and 'X' for Shutdown (or Quit)
-    { 7, 0,               0,           'V'},       // btnSTF
+#if defined(DEBUG_KEYBOARD)
+    { 6, KEY_RETURN,     0,      'E'},       // btnEnter: joystick button
+    { 9, 0,       KEY_F4,  KEY_F5},    // btnFn: Mouse/Kbr, F4, F5   
+    {14, KEY_F1,  KEY_F2,  KEY_F3},    // btnMenu: F1,  F2,  F3
+    {15, KEY_ESC, KEY_F11, KEY_F12},   // btnX:    ESC, F11, F12
+    { 7, 0,               0,           'V'}, // btnSTF
+#elif defined(WITH_DBLCLICK)  // Standard Button Layout + extra: 1, 2, 3, 4, 5, E, X, managed by [events].xci 
+/* joy */  { 6, KEY_RETURN, 0,  'E'},       // btnEnter: joystick button
+/* Fn  */  { 9, '1',      '2',  '3'},       // btnFn: F5 (Goto) and F6 (Alternative) key
+/* M   */  {14, KEY_F1,   'M',  '4'},       // btnMenu: QuickMenu and AudioMenue
+/* X   */  {15, KEY_ESC,  'X',  '5'},       // btnX: ESC and 'X' for Shutdown (or Quit)
+/* STF */  { 7,  0,         0,  'V'},       // btnSTF
 #else
     { 6, KEY_RETURN,      0,           0},         // btnEnter: joystick button
     { 9, 0,               0,           0},         // btnFn: mouse switch (and 'P')
@@ -249,9 +266,27 @@ PushButton button[btnSize] = {
     {btn_design[joyRight].Pin, pullup}  //
 };
 
+#ifdef WITH_EARLY_WDT_DISABLE
+// ----------------------------------------------------------------------------
+// Wird VOR setup() und VOR C++-Globalkonstruktion ausgefuehrt (Section .init3).
+// Loescht MCUSR, deaktiviert den Watchdog sofort - damit kommt ein vorheriger
+// WDT-Reset garantiert durch den Caterina-Bootloader. Auch wenn Caterina
+// (unmodifiziert) anschliessend noch 8s wartet, kann er sich nicht erneut
+// am WDT 'verschlucken'.
+// mcusr_at_boot bleibt ueber den Reset hinweg verfuegbar (.noinit).
+uint8_t mcusr_at_boot __attribute__((section(".noinit")));
+
+void wdtEarlyDisable(void) __attribute__((naked, used, section(".init3")));
+void wdtEarlyDisable(void) {
+    mcusr_at_boot = MCUSR;
+    MCUSR = 0;
+    wdt_disable();
+}
+#endif  // WITH_EARLY_WDT_DISABLE
+
 #ifdef  WITH_WATCHDOG
 // ----------------------------------------------------------------------------
-void watchdogInit() {                                         
+void watchdogInit() {
         timeWDT = time_now = millis();
         wdt_reset();
         WDTCSR |= (1 << WDCE) | (1 << WDE);  // set relevant bits to enter watchdog timer configuration mode
@@ -263,10 +298,101 @@ void wdtReset() {
     if (time_now - timeWDT >= 450) {  // 2 in 1 second
         timeWDT = time_now;
         wdt_reset();
-        Keyboard.write(0); // only a \0
+#ifndef WITHOUT_USB_KEEPALIVE
+        Keyboard.write(0); // only a \0  (alter Keepalive, kann USB blockieren!)
+#endif
     }
 }
 #endif  // WITH_WATCHDOG
+
+#ifdef WITH_USB_REATTACH
+// ----------------------------------------------------------------------------
+// Anzahl bereits ausgefuehrter Soft-Reattaches seit Boot (NMEA-Diagnose).
+static uint8_t       reattachCount       = 0;
+// Zeitpunkt des letzten Soft-Reattach (Anti-Flapping).
+static unsigned long lastReattachMillis  = 0;
+// Minimal-Pause zwischen zwei Reattaches.
+static const unsigned long REATTACH_MIN_INTERVAL = 5000;
+
+// --- Stabilisierung (v4.1) ----------------------------------------------
+// Zeitpunkt, an dem der USB-Zustand zum ersten Mal als 'abnormal' beobachtet
+// wurde (isSuspended() oder !configured()). 0 = aktuell normal.
+static unsigned long usbAbnormalSince    = 0;
+// Mindestdauer, die der Abnormal-Zustand anhalten muss, bevor wir ein
+// Reattach triggern. Schuetzt vor Spurious-Events durch elektrische Wackler
+// (USBasp am ICSP-Header, ESD, EMV im Flug).
+static const unsigned long USB_ABNORMAL_DEBOUNCE   = 500;
+// Wenn der Stick laenger als so abnormal ist, *ohne* dass eine Taste
+// gedrueckt wird, starten wir ein Reattach proaktiv aus dem Mainloop.
+static const unsigned long USB_PREEMPTIVE_RECOVERY = 5000;
+
+// Aktueller USB-Zustand 'verdaechtig'?
+static inline bool usbAbnormalNow() {
+    return USBDevice.isSuspended() || !USBDevice.configured();
+}
+
+// Hat der Abnormal-Zustand schon laenger als Debounce-Threshold angedauert?
+static inline bool usbAbnormalStable() {
+    return (usbAbnormalSince != 0) &&
+           (time_now - usbAbnormalSince >= USB_ABNORMAL_DEBOUNCE);
+}
+
+// Wird im Mainloop einmal pro Iteration gerufen. Verfolgt den Zeitpunkt,
+// an dem die Schnittstelle zum ersten Mal abnormal wurde, und triggert ein
+// preemptives Reattach, wenn es zu lange so bleibt.
+static void monitorUsbState() {
+    if (usbAbnormalNow()) {
+        if (usbAbnormalSince == 0) {
+            usbAbnormalSince = time_now;
+        } else if (time_now - usbAbnormalSince >= USB_PREEMPTIVE_RECOVERY) {
+            softReattach("idle-recover");
+            // softReattach hat eigenes Anti-Flapping (REATTACH_MIN_INTERVAL);
+            // Marker zuruecksetzen, damit naechste Episode wieder
+            // debounct gemessen wird.
+            usbAbnormalSince = 0;
+        }
+    } else {
+        usbAbnormalSince = 0;
+    }
+}
+
+// Versucht ein sanftes USB-Re-Enumerate, ohne den Chip zurueckzusetzen.
+// Vorteil gegenueber WDT-Reset: keine Bootloader-Phase, < 1s Recovery,
+// laufender Zustand bleibt erhalten (Tastenstatus, EEPROM-Zaehler usw.).
+void softReattach(const char *reason) {
+    unsigned long now = millis();
+    if (lastReattachMillis != 0 && (now - lastReattachMillis) < REATTACH_MIN_INTERVAL) {
+        return;
+    }
+    lastReattachMillis = now;
+    if (reattachCount < 255) reattachCount++;
+
+# ifdef WITH_SERIAL_2
+    char buf[48];
+    snprintf(buf, sizeof(buf), "Reattach,%s,n=%u", reason, (unsigned)reattachCount);
+    sendNMEA('I', buf);
+    Serial.flush();
+# endif
+
+    USBDevice.detach();
+    // Wartezeit ohne den Mainloop zu verlieren: WDT mitkicken.
+    for (uint8_t i = 0; i < 25; i++) {  // ~250 ms detach
+#  ifdef WITH_WATCHDOG
+        wdt_reset();
+#  endif
+        delay(10);
+    }
+    USBDevice.attach();
+    // Bis zu ~300 ms warten, bis Host wieder enumeriert hat.
+    for (uint8_t i = 0; i < 30; i++) {
+#  ifdef WITH_WATCHDOG
+        wdt_reset();
+#  endif
+        delay(10);
+        if (USBDevice.configured()) break;
+    }
+}
+#endif  // WITH_USB_REATTACH
 
 // ============================================= 
 // ============================================= 
@@ -338,8 +464,29 @@ void sendNMEA(const char set, const char* line) {
 
 // ----------------------------------------------------------------------------
 void sendKey(const unsigned int key) {
+#ifdef WITH_USB_REATTACH
+    // Falls Host die Schnittstelle suspendiert hat: erst Remote-Wakeup
+    // anfordern, dann kurz warten. Wenn das nicht hilft UND der Zustand
+    // ist bereits laenger stabil abnormal (Debounce gegen Spurious-Events,
+    // z.B. durch angeschlossenes USBasp oder kurze EMV-Stoerungen) -> Soft-Reattach.
+    if (USBDevice.isSuspended()) {
+        bool woken = USBDevice.wakeupHost();
+        for (uint8_t i = 0; i < 20 && USBDevice.isSuspended(); i++) {
+# ifdef WITH_WATCHDOG
+            wdt_reset();
+# endif
+            delay(5);
+        }
+        if (USBDevice.isSuspended() && usbAbnormalStable()) {
+            softReattach(woken ? "wake-fail" : "no-wake");
+        }
+    } else if (!USBDevice.configured() && usbAbnormalStable()) {
+        // Schnittstelle nicht konfiguriert UND laenger stabil so -> Reattach.
+        softReattach("not-cfg");
+    }
+#endif  // WITH_USB_REATTACH
     Keyboard.write(key);
-#if defined(WITH_SERIAL) 
+#if defined(WITH_SERIAL)
     switch(key) {
       case KEY_F1: strcpy(send_buffer, "F1"); break;
       case KEY_F2: strcpy(send_buffer, "F2"); break;
@@ -502,13 +649,45 @@ void loop() {
          if (serialNum[0] == 'S') {
              // maybe a valid serial SteFly number
             EEPROM.get(0, serialNum);
-         } else {              
+         } else {
             strcpy(serialNum, "SF-SRC:00002");  // Stick Remote Control
             EEPROM.put(0, serialNum);
             Serial.println("Rite EEProm");
          }
          sendNMEA('I',serialNum);
-         
+
+#  ifdef WITH_RESET_LOG
+         // Reset-Statistik im EEPROM (Offset 64, ausserhalb der Seriennummer).
+         // Layout: [64]='R' magic, [65..66]=uint16 resetCount, [67]=last MCUSR.
+         {
+           const int RL_BASE = 64;
+           const uint8_t RL_MAGIC = 'R';
+           uint16_t resetCount = 0;
+           uint8_t  lastMcusr  = mcusr_at_boot;
+           if (EEPROM.read(RL_BASE) != RL_MAGIC) {
+             EEPROM.write(RL_BASE, RL_MAGIC);
+             resetCount = 1;
+             EEPROM.put(RL_BASE + 1, resetCount);
+           } else {
+             EEPROM.get(RL_BASE + 1, resetCount);
+             if (resetCount < 0xFFFF) resetCount++;
+             EEPROM.put(RL_BASE + 1, resetCount);
+           }
+           EEPROM.write(RL_BASE + 3, lastMcusr);
+
+           const char *cause;
+           if      (lastMcusr & (1<<WDRF))  cause = "WDT";
+           else if (lastMcusr & (1<<BORF))  cause = "BOR";
+           else if (lastMcusr & (1<<EXTRF)) cause = "EXT";
+           else if (lastMcusr & (1<<PORF))  cause = "POR";
+           else                              cause = "UNK";
+           char buf[60];
+           snprintf(buf, sizeof(buf),
+                    "Reset=%s,MCUSR=0x%02X,n=%u",
+                    cause, lastMcusr, (unsigned)resetCount);
+           sendNMEA('I', buf);
+         }
+#  endif  // WITH_RESET_LOG
 # endif  // WITH_SERIAL
 # ifdef  WITH_WATCHDOG
         // Enabling after start_wait time
@@ -528,6 +707,11 @@ void loop() {
 // #if VERSION_TYPE > VERSION_OLD
 #ifdef  WITH_WATCHDOG
   wdtReset();
+#endif
+
+#ifdef WITH_USB_REATTACH
+  // USB-Zustand beobachten: Stabilitaets-Debouncer und preemptive Recovery
+  monitorUsbState();
 #endif
 
 #ifdef WITH_SERIAL
@@ -656,11 +840,21 @@ void onReset(PushButton& btn) {
   }
 #endif
 
+#ifdef WITH_CLEAN_RESET
+    // Sauberer Reset: kurz WDT scharf machen, dann busy-loop. Kein cli()
+    // wie bei exit(), USB-Detach-Sequenz im Bootloader laeuft normal.
+# ifdef WITH_SERIAL_2
+    Serial.flush();
+# endif
+    wdt_enable(WDTO_15MS);
+    while (1) { }
+#else
 //    delay(100);
     exit(1);
+#endif
   // }
   // }
-} 
+}
 
 // ----------------------------------------------------------------------------
 void onBtnHeldTopLeft(PushButton& btn){
