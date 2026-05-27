@@ -58,8 +58,18 @@ def _arduino_packages_root() -> Path | None:
 
 
 def find_avrdude() -> str | None:
-    """Sucht eine avrdude-Binary. Reihenfolge: System-PATH -> Arduino-IDE 2 ->
-    Arduino-IDE 1.x. Gibt None zurueck, wenn nichts gefunden."""
+    """Sucht eine avrdude-Binary. Reihenfolge: mitgelieferte Toolchain ->
+    System-PATH -> Arduino-IDE 2 -> Arduino-IDE 1.x. Gibt None zurueck,
+    wenn nichts gefunden."""
+    # 0) Mitgelieferte Toolchain im Projektordner (portable, ohne IDE-Install)
+    here = Path(__file__).resolve().parent
+    for bundled in (
+        here / "avrdude" / ("avrdude.exe" if sys.platform == "win32" else "avrdude"),
+        here / "avrdude" / "bin" / ("avrdude.exe" if sys.platform == "win32" else "avrdude"),
+    ):
+        if bundled.exists():
+            return str(bundled)
+
     # 1) System-PATH
     on_path = shutil.which("avrdude")
     if on_path:
