@@ -245,6 +245,11 @@ def _cli() -> int:
 
     # Firmware
     firmware = args.firmware or find_default_firmware(project_root)
+    fw = str(firmware).strip()
+    # match firmware:
+    if (len(fw) < 10):
+        firmware = Path('deploy/'+fw+'/Stick_Remote_Control_SteFly_v'+fw+'.ino.hex')
+    print('firmware = ', firmware)
     if firmware is None or not firmware.exists():
         print("[programmer] FEHLER: keine .hex gefunden. -f explizit angeben.", file=sys.stderr)
         return 5
