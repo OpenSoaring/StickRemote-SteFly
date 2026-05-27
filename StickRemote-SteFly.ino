@@ -25,34 +25,32 @@ the sketch uses libraries from
                        // and a complete different code flow, so I expect a better 
                        // debounce behavior of the keys here
                        // Version: v1.0
-#define VERSION_2   1  // previous version with added watchdog only and 
+#define VERSION_2   20000  // previous version with added watchdog only and 
                        // (WatchDog-)Reset at long pressed Enter button (joy
                        // stick button) and with diagonal movement of the mouse
                        // and the activation of the serial interface
                        // Version: v2.0
-#define VERSION_2_1 2  // extended version with WatchDog and additional key 'Q' (= quit)
+#define VERSION_2_1 20100  // extended version with WatchDog and additional key 'Q' (= quit)
                        // on long pressed X button (> 1sec,  < 4sec), 'X' (= shutdown) on very
                        // long pressed X button (> 4sec), 'E' (= btn_design) on long pressed.
                        // (> 1sec) Fn button
                        // Mouse moves at an increased speed after ~0.8 sec
                        // Version: v2.1
-#define VERSION_3   3  // extended version with shift key, double click, serial communication
+#define VERSION_3   30000  // extended version with shift key, double click, serial communication
+                       // + USB-Recovery (Stufe A+B) 
                        // watchdog send 0
-                       // Version: v3.0
-#define VERSION_4   4  // V3 + USB-Recovery (Stufe A+B)
                        //  - Frueher WDT-disable in .init3 (Caterina-Falle umgehen)
                        //  - WDT-Kick ohne Keyboard.write(0) (kein USB-Traffic noetig)
                        //  - MCUSR-Auswertung + Reset-Log im EEPROM + NMEA-Bootmsg
                        //  - Soft Re-Enumeration via USBDevice.detach/attach
                        //    bei USB-Suspend oder Send-Timeout (kein WDT-Reset noetig)
                        //  - exit(1) ersetzt durch sauberen wdt-Reset
-                       // Version: v4.0
+#define VERSION_3_1 30100  // key layout like 2.1 (VERSION_2_1)
+                       // Version: v3.1
+#define VERSION_3_2 30200  // new key layout
+                       // Version: v3.2
 // -----------------------------------------------------------
-/* /
-#define VERSION_TYPE    VERSION_2_1  // OLD, NEW or EXT or SHIFT
-/*/
-#define VERSION_TYPE    VERSION_4
-/**/
+#define VERSION_TYPE    VERSION_3_2
 // -----------------------------------------------------------
 #include <Mouse.h>
 #include <Keyboard.h>
@@ -63,25 +61,17 @@ the sketch uses libraries from
 # include "avr/wdt.h"
 # define WITH_WATCHDOG
 # define WITH_SERIAL
-# define RESTART_VERSION1
-#endif
-
-#if VERSION_TYPE == VERSION_2_1
-# define MOUSE_ACCELERATOR
-# define RESTART_VERSION1
+# define RESTART_VERSION
 #endif
 
 #if VERSION_TYPE >= VERSION_3
-# define MOUSE_ACCELERATOR
 # define MOUSE_WITH_STF_KEY
-# define WITH_SERIAL_2
 # define EXTEND_SERIAL
 # define WAIT_FOR_ENTER
-# define RESTART_VERSION2
 # define WITH_DBLCLICK
 #endif
 
-#if VERSION_TYPE >= VERSION_4
+#if VERSION_TYPE >= VERSION_3   // (Claude changes)
 // USB-Recovery-Paket. Wirkt zusammen mit (modifiziertem) Caterina-Bootloader,
 // laeuft aber auch mit Original-Caterina - dann nur eben mit 8s Wartezeit nach
 // einem WDT-Reset (was wir mit WITH_USB_REATTACH ja gerade vermeiden wollen).
@@ -90,7 +80,6 @@ the sketch uses libraries from
 # define WITH_RESET_LOG           // MCUSR + Zaehler ins EEPROM, NMEA-Bootmsg
 # define WITH_USB_REATTACH        // sanftes Re-Enumerieren bei Suspend/Send-Stall
 # define WITH_CLEAN_RESET         // exit(1) -> wdt_enable(WDTO_15MS); while(1){}
-# define DEBUG_KEYBOARD
 #endif
 
 // disable the next define if you have a BUTTON instead a TOGGLE SWITCH: 
@@ -106,8 +95,10 @@ const char* Date    = __DATE__;  // = Compile Date: "2025-01-24";
   const char* Version = "v2.1.1";
 #elif VERSION_TYPE  == VERSION_3
   const char *Version = "v3.0";
-#elif VERSION_TYPE  == VERSION_4
-  const char *Version = "v4.1";
+#elif VERSION_TYPE  == VERSION_3_1
+  const char *Version = "v3.1";
+#elif VERSION_TYPE  == VERSION_3_2
+  const char *Version = "v3.2";
 #else
   const char* Version = "unknown";
 #endif
@@ -125,8 +116,8 @@ const int button_hold_threshold = 900;
 const int enter_hold_threshold  = 2000;
 const int button_long_hold      = 5000;  // = 5 seconds
 const int joy_hold_threshold    = 80;
-const int dblclick_threshold    = 500;
-const unsigned long start_delay = 500;
+const int dblclick_threshold    = 400;  // previous: 500;  // ms
+const unsigned long start_delay = 500;  // ms
 const unsigned int start_wait   = 2000;  // 2000;
 
 const int MouseDistance = 4;     // mouse one step (-> mouse speed and accurancy)
@@ -134,12 +125,7 @@ const int mouse_speed_switch = 800;   // faster mouse after this time (in ms)
 //                             KEY, MOUSE
 const int joy_repeats[][2] = {{  5,   0},     // 1st reaction
                               {150, 120},     // pause after 1st press
-#ifdef MOUSE_ACCELERATOR
-                              { 20,   4},     // repeat interval (long press < 800ms)
-                              { 20,   1}};    // accelerated repeat interval (long press > 800ms)
-#else 
                               { 20,   4}};     // repeat interval (long press < 800ms)
-#endif                              
 
 // Create instances of PushButtons on digital pins
 enum {
@@ -222,15 +208,9 @@ struct key_struct {
 
 // const 
 struct key_struct btn_design[btnSize]/* [4] */ = {
-   // Pin,short pressed    >= 1 Second  very long (not used up to now) 
-#if defined(DEBUG_KEYBOARD)
-    { 6, KEY_RETURN,     0,      'E'},       // btnEnter: joystick button
-    { 9, 0,       KEY_F4,  KEY_F5},    // btnFn: Mouse/Kbr, F4, F5   
-    {14, KEY_F1,  KEY_F2,  KEY_F3},    // btnMenu: F1,  F2,  F3
-    {15, KEY_ESC, KEY_F11, KEY_F12},   // btnX:    ESC, F11, F12
-    { 7, 0,               0,           'V'}, // btnSTF
-#elif defined(WITH_DBLCLICK)  // Standard Button Layout + extra: 1, 2, 3, 4, 5, E, X, managed by [events].xci 
-/* joy */  { 6, KEY_RETURN, 0,  'E'},       // btnEnter: joystick button
+//  struct: Pin, Click, LongClick, DblClick 
+#if defined(WITH_DBLCLICK)  // Standard Button Layout + extra: 1, 2, 3, 4, 5, E, X, managed by [events].xci 
+/* joy */  { 6, KEY_RETURN, 0,  '0'},       // btnEnter: joystick button
 /* Fn  */  { 9, '1',      '2',  '3'},       // btnFn: F5 (Goto) and F6 (Alternative) key
 /* M   */  {14, KEY_F1,   'M',  '4'},       // btnMenu: QuickMenu and AudioMenue
 /* X   */  {15, KEY_ESC,  'X',  '5'},       // btnX: ESC and 'X' for Shutdown (or Quit)
@@ -367,7 +347,7 @@ void softReattach(const char *reason) {
     lastReattachMillis = now;
     if (reattachCount < 255) reattachCount++;
 
-# ifdef WITH_SERIAL_2
+# ifdef WITH_SERIAL
     char buf[48];
     snprintf(buf, sizeof(buf), "Reattach,%s,n=%u", reason, (unsigned)reattachCount);
     sendNMEA('I', buf);
@@ -463,7 +443,7 @@ void sendNMEA(const char set, const char* line) {
 #endif // defined(WITH_SERIAL) 
 
 // ----------------------------------------------------------------------------
-void sendKey(const unsigned int key) {
+void sendKey(const unsigned int key, const unsigned int info=0) {
 #ifdef WITH_USB_REATTACH
     // Falls Host die Schnittstelle suspendiert hat: erst Remote-Wakeup
     // anfordern, dann kurz warten. Wenn das nicht hilft UND der Zustand
@@ -508,6 +488,9 @@ void sendKey(const unsigned int key) {
         } else send_buffer[0] = 0;
       }
       break;
+    }
+    if (info > 0) {
+       sprintf(send_buffer+strlen(send_buffer),"%dms", info);
     }
     if (*send_buffer) {
       sendNMEA('K', send_buffer);
@@ -560,7 +543,10 @@ void setup() {
 #endif  
 
   // btnEnter:
-#if VERSION_TYPE  >=  VERSION_2_0
+#if VERSION_TYPE  >=  VERSION_3
+  button[btnEnter].onRelease(0,button_hold_threshold-1, onButtonClick);
+  button[btnEnter].onHold(button_hold_threshold, onDblClick);
+#elif VERSION_TYPE  >=  VERSION_2_0
   button[btnEnter].onRelease(0,enter_hold_threshold-1, onEnter);
   button[btnEnter].onHold(enter_hold_threshold, onReset);
 #else
@@ -578,22 +564,22 @@ void setup() {
   // btnFn
 #if VERSION_TYPE  ==  VERSION_2_1
   button[btnFn].onRelease(0,button_hold_threshold-1, onMouseMode);
-  button[btnFn].onHold(button_hold_threshold, onButtonLong);
+  button[btnFn].onHold(button_hold_threshold, onDblClick);
 #elif defined (MOUSE_WITH_STF_KEY)  // no mouse mode anymore here:
   button[btnFn].onRelease(0,button_hold_threshold-1, onButtonClick);
-  button[btnFn].onHold(button_hold_threshold, onButtonLong);
+  button[btnFn].onHold(button_hold_threshold, onDblClick);
 #else
   button[btnFn].onRelease(onMouseMode);
 #endif
 
   // btnMenu
   button[btnMenu].onRelease(0,button_hold_threshold-1,onButtonClick);
-  button[btnMenu].onHold(button_hold_threshold, onButtonLong);
+  button[btnMenu].onHold(button_hold_threshold, onDblClick);
 
-  // btnX with Short, Long and VeryLong press
+  // btnX with Short, Long press and DblClick
 #if VERSION_TYPE  >=  VERSION_2_1
   button[btnX].onRelease(0,button_hold_threshold-1,onButtonClick);
-  button[btnX].onHold(button_hold_threshold, onButtonLong);
+  button[btnX].onHold(button_hold_threshold, onDblClick);
 #else
   button[btnX].onRelease(onXRelease);
 #endif
@@ -622,7 +608,8 @@ void loop() {
 
 #if defined(WITH_DBLCLICK)
   for (int index = btnEnter; index < btnPTT; index++) {
-    if (BtnClickTime[index] && time_now - BtnClickTime[index] > 500) { //-> SingleClick!
+    int click_time = time_now - BtnClickTime[index];
+    if (BtnClickTime[index] && (click_time > dblclick_threshold)) { //-> SingleClick!
        // Serial.println(time_now - BtnClickTime[index]);  /* TEST */
        BtnClickTime[index] = 0;
        if (btn_design[index].Click) { // [KEY_PRESSED]) {
@@ -632,17 +619,16 @@ void loop() {
   }
 #endif // defined(WITH_DBLCLICK)
 
-#if !defined(RESTART_VERSION2)
-// #if VERSION_TYPE  <  VERSION_3
+#if !defined(RESTART_VERSION)
   for (int i=0;i<btnSize;i++)
     button[i].update();
-#else // RESTART_VERSION2
+#else // RESTART_VERSION
  
 //  if (!startBit && (time_now-startTime > start_wait)) {
   if (!startBit) {
       if (time_now-startTime > start_wait) {
          startBit = true;
-# ifdef WITH_SERIAL_2
+# ifdef WITH_SERIAL
          sendNMEA('I',"Start");
          char serialNum[20];
          serialNum[0] = EEPROM.read(0);
@@ -680,7 +666,7 @@ void loop() {
            else if (lastMcusr & (1<<BORF))  cause = "BOR";
            else if (lastMcusr & (1<<EXTRF)) cause = "EXT";
            else if (lastMcusr & (1<<PORF))  cause = "POR";
-           else                              cause = "UNK";
+           else                             cause = "UNK";
            char buf[60];
            snprintf(buf, sizeof(buf),
                     "Reset=%s,MCUSR=0x%02X,n=%u",
@@ -692,7 +678,7 @@ void loop() {
 # ifdef  WITH_WATCHDOG
         // Enabling after start_wait time
         watchdogInit();
-# endif // RESTART_VERSION2
+# endif // RESTART_VERSION
       }
   } else {
     for (int i=0;i<btnSize;i++)
@@ -778,7 +764,6 @@ void onEnter(PushButton& btn) {
       DblClickTest(btnEnter);        
       /*/
       if (btn_design[0].Click) {
-         // sendKey(btn_design[0].Click);
          sendKey(btn_design[0].Click);
       }
     }
@@ -793,12 +778,13 @@ void onMouseMode(PushButton& btn){
 #ifdef WITH_DBLCLICK
 bool DblClickTest(int index) {
   if (BtnClickTime[index] > 0) { //-> DoubleClick!
-     Serial.println(time_now - BtnClickTime[index]);  /* TEST */
+     int click_time = time_now - BtnClickTime[index];
+     // Serial.println(click_time);  /* TEST */
      DblClickTime[index] = time_now;
      BtnClickTime[index] = 0;
      if (btn_design[index].DblClick)
        // On btnSTF this is 0!
-       sendKey(btn_design[index].DblClick);
+       sendKey(btn_design[index].DblClick, click_time);
      return true;
      
   } else {
@@ -816,44 +802,36 @@ bool DblClickTest(int index) {
 
 // ----------------------------------------------------------------------------
 void onButtonClick(PushButton& btn){
+#ifdef WITH_DBLCLICK
   DblClickTest(&btn - button);
   //int index = &btn - button;
+#endif  // WITH_DBLCLICK
 }
 
 // ----------------------------------------------------------------------------
 void onReset(PushButton& btn) {
-#ifdef WITH_SERIAL_2
-    sendNMEA('I', "Reset");
+#ifdef WITH_SERIAL
+    sendNMEA('I', "Reset(Manually)");
 #endif  // WITH_SERIAL
-//  if (btn_design[0].LongClick) {
-//    sendKey(btn_design[0].LongClick);
-//  }
-  // if (!button[btnSTF].isPressed()) {
-  //  if (millis()-startTime > start_delay) {
-//  while(
+
 #ifdef  WITH_WATCHDOG
-//  while (!digitalRead(btn_design[btnEnter][PIN])) { // = isPressed
   while (!digitalRead(btn_design[btnEnter].Pin)) { // = isPressed
     wdtReset();
     delay(200);
-    // sendNMEA('I', "x");
   }
 #endif
 
 #ifdef WITH_CLEAN_RESET
     // Sauberer Reset: kurz WDT scharf machen, dann busy-loop. Kein cli()
     // wie bei exit(), USB-Detach-Sequenz im Bootloader laeuft normal.
-# ifdef WITH_SERIAL_2
+# ifdef WITH_SERIAL
     Serial.flush();
 # endif
-    wdt_enable(WDTO_15MS);
+    wdt_enable(WDTO_15MS); // much faster...
     while (1) { }
 #else
-//    delay(100);
     exit(1);
 #endif
-  // }
-  // }
 }
 
 // ----------------------------------------------------------------------------
@@ -863,24 +841,20 @@ void onBtnHeldTopLeft(PushButton& btn){
 }
 
 // ----------------------------------------------------------------------------
-void onButtonLong(PushButton& btn){
+void onDblClick(PushButton& btn){
   int index = &btn - button;
-  if (btn_design[index].LongClick) {
-    BtnClickTime[index] = 0;
-    sendKey(btn_design[index].LongClick);
+  if (index==btnEnter) {
+    onReset(btn);
+  } else {
+    if (btn_design[index].LongClick) {
+#ifdef WITH_DBLCLICK
+      BtnClickTime[index] = 0;
+#endif  // WITH_DBLCLICK
+      sendKey(btn_design[index].LongClick);
+    }
   }
 }
  
-// ----------------------------------------------------------------------------
-// void onButtonVeryLong(PushButton& btn){
-//   int index = &btn - button;
-//   if (btn_design[index].DblClick) {
-//     sendKey(btn_design[index].DblClick);
-//   } else if (btn_design[index].LongClick) {
-//     sendKey(btn_design[index].LongClick);
-//   }
-// } 
-
 // ----------------------------------------------------------------------------
 void onJoyArrow(PushButton& btn) { //
   int index = &btn - button;
@@ -914,10 +888,6 @@ void onJoyArrow(PushButton& btn) { //
       switch(repeat_mode[index]) {
         case 0: 
         case 1: repeat_mode[index]++;break; 
-#ifdef MOUSE_ACCELERATOR
-        case 2: if (time_now - btn_timer[index] > mouse_speed_switch)
-                   repeat_mode[index]++;break; 
-#endif                              
         default: break;
       }
       key_bounce = joy_repeats[repeat_mode[index]][mouse_active];
