@@ -20,7 +20,7 @@ Lauffaehig auf:
 
 Beispiel:
     python tools/programmer.py --firmware build/arduino.avr.leonardo/StickRemote-SteFly.ino.hex
-    python tools/programmer.py -f build/arduino.avr.leonardo/StickRemote-SteFly.ino.hex --verbose
+    python tools/programmer.py -f build/StickRemote-SteFly.hex --verbose
 
 Erfordert: pyserial  (pip install pyserial)
 """
@@ -123,8 +123,8 @@ def find_avrdude_conf(avrdude_path: str | None) -> str | None:
 def find_default_firmware(project_root: Path) -> Path | None:
     """Sucht eine sinnvolle .hex-Datei im Projekt, wenn der User keine angibt."""
     for rel in (
+        "build/StickRemote-SteFly.hex",
         "build/arduino.avr.leonardo/StickRemote-SteFly.ino.hex",
-        "build/StickRemote-SteFly.ino.hex",
     ):
         p = project_root / rel
         if p.exists():
@@ -258,6 +258,7 @@ def _cli() -> int:
     fw = str(firmware).strip()
     # match firmware:
     if (len(fw) < 10):
+        print('FW = ',fw)
         firmware = Path('deploy/'+fw+'/Stick_Remote_Control_SteFly_v'+fw+'.ino.hex')
     print('firmware = ', firmware)
     if firmware is None or not firmware.exists():
