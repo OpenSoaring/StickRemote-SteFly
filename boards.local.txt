@@ -1,0 +1,80 @@
+# boards.local.txt - lokale Boards-Definition fuer den SteFly Stick Remote
+#
+# Diese Datei NICHT im Sketch-Ordner lassen, sondern in den AVR-Core-Ordner
+# kopieren. Das Skript tools\install-boards-local.ps1 erledigt das automatisch
+# fuer alle installierten Core-Versionen.
+#
+# Ergebnis: Im Boards-Manager-Menue der Arduino-IDE erscheint zusaetzlich
+# der Eintrag "SteFly Stick Remote" als eigene Board-Wahl, der auf dem
+# Leonardo (ATmega32U4) basiert, aber mit SteFly-spezifischen USB-IDs
+# und Strings kompiliert wird.
+#
+# Vorteil gegenueber dem reinen Override des Leonardo-Eintrags:
+#   - Standard-Leonardo bleibt unangetastet (andere Sketche stoeren sich nicht)
+#   - SteFly-Konfiguration kommt nicht versehentlich auf einen Bastel-Leonardo
+#   - Boards-Manager-Updates des AVR-Cores beruehren diese Datei nicht
+#
+# Quellen: Arduino-AVR-Core boards.txt 'leonardo.*' Block als Vorlage,
+# nur die USB-Identitaet wurde fuer SteFly angepasst.
+
+# === SteFly Stick Remote ===================================================
+
+stefly_remote.name=SteFly Stick Remote
+
+# --- USB-IDs zur Port-Erkennung (laufender Sketch + Caterina DFU) ---------
+# Bei laufendem Sketch meldet sich der Stick als pid.codes 0x1209:0x8500.
+# Im Bootloader-Modus (Caterina DFU, 8s-Fenster nach 1200-Baud-Reset) meldet
+# er sich noch mit Arduino-Standard-IDs 0x2341:0x0036, solange Caterina selbst
+# nicht eigens umgebaut wurde.
+stefly_remote.vid.0=0x1209
+stefly_remote.pid.0=0x8500
+stefly_remote.vid.1=0x2341
+stefly_remote.pid.1=0x0036
+stefly_remote.vid.2=0x2A03
+stefly_remote.pid.2=0x0036
+
+# --- Upload-Port-Matching (gleiche Logik fuer Tools-Menue) -----------------
+stefly_remote.upload_port.0.vid=0x1209
+stefly_remote.upload_port.0.pid=0x8500
+stefly_remote.upload_port.1.vid=0x2341
+stefly_remote.upload_port.1.pid=0x0036
+stefly_remote.upload_port.2.vid=0x2A03
+stefly_remote.upload_port.2.pid=0x0036
+stefly_remote.upload_port.3.board=stefly_remote
+
+# --- Upload via avr109 (Caterina-Protokoll ueber CDC) ---------------------
+stefly_remote.upload.tool=avrdude
+stefly_remote.upload.tool.default=avrdude
+stefly_remote.upload.tool.network=arduino_ota
+stefly_remote.upload.protocol=avr109
+stefly_remote.upload.maximum_size=28672
+stefly_remote.upload.maximum_data_size=2560
+stefly_remote.upload.speed=57600
+stefly_remote.upload.disable_flushing=true
+stefly_remote.upload.use_1200bps_touch=true
+stefly_remote.upload.wait_for_upload_port=true
+
+# --- Bootloader-Definition (Standard-Caterina) ----------------------------
+# Verwendet die Standard-Caterina-Leonardo.hex aus dem AVR-Core. Falls die
+# durch deinen alten Flash-Dump korrumpiert ist, mit tools\fix-caterina.ps1
+# reparieren.
+stefly_remote.bootloader.tool=avrdude
+stefly_remote.bootloader.tool.default=avrdude
+stefly_remote.bootloader.low_fuses=0xff
+stefly_remote.bootloader.high_fuses=0xd8
+stefly_remote.bootloader.extended_fuses=0xcb
+stefly_remote.bootloader.file=caterina/Caterina-Leonardo.hex
+stefly_remote.bootloader.unlock_bits=0x3F
+stefly_remote.bootloader.lock_bits=0x2F
+
+# --- Build-Konfiguration ---------------------------------------------------
+stefly_remote.build.mcu=atmega32u4
+stefly_remote.build.f_cpu=16000000L
+stefly_remote.build.vid=0x1209
+stefly_remote.build.pid=0x8500
+stefly_remote.build.usb_product="Remote Stick"
+stefly_remote.build.usb_manufacturer="SteFly.aero"
+stefly_remote.build.board=AVR_LEONARDO
+stefly_remote.build.core=arduino
+stefly_remote.build.variant=leonardo
+stefly_remote.build.extra_flags={build.usb_flags}
