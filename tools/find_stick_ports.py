@@ -17,18 +17,28 @@ Erfordert: pyserial  (pip install pyserial)
 """
 from __future__ import annotations
 import argparse
+import os
 import sys
 import time
 from dataclasses import dataclass
 from typing import Iterable
+
+# Lokale, mitgelieferte python-deps (z.B. pyserial) bevorzugen, falls vorhanden.
+# Wird durch tools/bootstrap.ps1 eingerichtet, damit das Werkstatt-Setup
+# unabhaengig von einer System-Python-Installation funktioniert.
+_local_deps = os.path.join(os.path.dirname(os.path.abspath(__file__)), "python-deps")
+if os.path.isdir(_local_deps) and _local_deps not in sys.path:
+    sys.path.insert(0, _local_deps)
 
 try:
     import serial
     from serial.tools.list_ports import comports
 except ImportError:
     sys.stderr.write(
-        "Fehler: 'pyserial' ist nicht installiert. "
-        "Installation: pip install pyserial\n"
+        "Fehler: 'pyserial' ist nicht installiert.\n"
+        "Loesungen:\n"
+        "  - lokal (empfohlen): tools\\bootstrap.ps1 ausfuehren\n"
+        "  - global:            pip install pyserial\n"
     )
     sys.exit(2)
 
