@@ -1,2 +1,11 @@
 /build
 /.theia
+backup
+_old
+deploy
+pidcodes
+tools/python-deps/serial/tools/__pycache
+__pycache__
+*.zip
+*.hex
+*.bin
