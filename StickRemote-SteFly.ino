@@ -55,6 +55,7 @@ the sketch uses libraries from
 #include <PushButton.h>
 #include <EEPROM.h>
 #include "RemoteStick.h"
+#include "RemoteEEprom.h"   // dual-slot EEPROM persistence (uses btn_design + all_layouts)
 
 #if VERSION_TYPE >= VERSION_2
 # include "avr/wdt.h"
@@ -518,8 +519,12 @@ void setup() {
 #ifdef WITH_SERIAL
   Serial.begin(9600);
 #endif  // WITH_SERIAL
-  uint8_t saved = EEPROM.read(EEPROM_LAYOUT_INDEX_ADDR);
-  loadLayout(saved);     // beim Boot: gespeicherte Wahl wiederherstellen
+
+  // Restore layout from EEPROM with dual-slot health-voting + self-heal.
+  // If both slots are corrupt or never initialized, fall back to flash preset 0.
+  if (!loadLayoutFromEEPROM()) {
+    loadPresetFromFlash(0);
+  }
 
 #ifdef WAIT_FOR_ENTER
 // ============================================= 
@@ -728,10 +733,37 @@ void loop() {
           //size_t l = strlen(read_buffer);
           read_buffer[l] = 0;
           if (read_buffer[l - 3] == '*') read_buffer[l - 3] = 0;
-          if (!strncmp(read_buffer + 1, "POPSQ,", 6))
+          if (!strncmp(read_buffer + 1, "POPSQ,", 6)) {
               readPOPSQ(read_buffer + 7);
              // sendNMEA('S', read_buffer + 7);
-          else 
+          }
+          // $POPSL,N - select flash preset N as active layout
+          else if (!strncmp(read_buffer + 1, "POPSL,", 6)) {
+              uint8_t idx = atoi(read_buffer + 7);
+              loadPresetFromFlash(idx);
+              snprintf_P(send_info, buffer_size, PSTR("Preset loaded,%u"), idx);
+              sendNMEA('I', send_info);
+          }
+          // $POPSK,btn,slot,ext,key - update single key entry (slot: 0=Click,1=LongClick,2=DblClick)
+          // example: 
+          // $POPSK,1,2,0,65 - update btMenu, DblClick, 0, 'A'
+          else if (!strncmp(read_buffer + 1, "POPSK,", 6)) {
+              uint8_t btn, slot, ext, key;
+              if (sscanf(read_buffer + 7, "%hhu,%hhu,%hhu,%hhu",
+                         &btn, &slot, &ext, &key) == 4) {
+                  if (updateKeySlot(btn, slot, ext, key))
+                      sendNMEA('I', "Key updated");
+                  else
+                      sendNMEA('I', "Invalid btn/slot index");
+              } else {
+                  sendNMEA('I', "POPSK parse error");
+              }
+          }
+          // $POPSH - request layout health dump
+          else if (!strncmp(read_buffer + 1, "POPSH", 5)) {
+              sendLayoutHealth();
+          }
+          else
              Serial.println(read_buffer); /*TEST */
         } 
       }
@@ -757,20 +789,12 @@ void loop() {
       case 'u': snprintf_P(send_info, buffer_size, PSTR("FileDate,%s"), Date);break;
       case 'f': snprintf_P(send_info, buffer_size, PSTR("FileName,%s"), FileName);break;  
       case 't': snprintf_P(send_info, buffer_size, PSTR("systime,%u"), time_now);break;
-      case '0': 
-      case '1': 
-      case '2': 
+      case '0':
+      case '1':
+      case '2':
       {
         char l = c-'0';
-//         snprintf_P(send_info, buffer_size, PSTR("keyLayout, %c-%c-%c"), btn_design[0].Click.key, btn_design[0].LongClick.key, '!'); // btn_design[0].DblClick.key);
-//         sendNMEA('X',send_info);
-/*/
-         for (int i=0; i<5; i++) 
-           // memcpy(&btn_design[i].Click, &key_layout[l][i], sizeof(key_layout[0][0]));
-           _memcpy(&btn_design[i].Click, &key_layout[l][i], sizeof(key_layout[0][0]));
-/*/
-         loadLayout(l);
-/**/
+         loadPresetFromFlash(l);   // load + persist (was: loadLayout)
          snprintf_P(send_info, buffer_size, PSTR("keyLayout %d (%d): "), l,
                     sizeof(btn_design));
         strcat(send_info, key_code(btn_design[0].Click));

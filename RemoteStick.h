@@ -125,29 +125,17 @@ const PROGMEM void* const all_layouts[] = {
 };
 const uint8_t NUM_LAYOUTS = sizeof(all_layouts) / sizeof(all_layouts[0]);
 
-// --- RAM-Arbeitskopie -------------------------------------------------------
+// --- RAM working copy -------------------------------------------------------
+// Both 'btn_design' and 'active_layout_index' are read/written by the mainloop
+// and by the EEPROM persistence layer in RemoteEEprom.h. Include order matters:
+// RemoteStick.h must be included BEFORE RemoteEEprom.h in the main .ino.
 key_struct btn_design[btnSize];
 
 uint8_t active_layout_index = 0;
 
-// --- EEPROM address for layout selection ------------------------------------
-const int EEPROM_LAYOUT_INDEX_ADDR = 100;
-
-extern void sendNMEA(const char set, const char* line);
-// --- Laden eines Layouts aus Flash ins RAM ----------------------------------
-void loadLayout(uint8_t index) {
-    if (index >= NUM_LAYOUTS) index = 0;          // security clamp
-    active_layout_index = index;
-
-    // read PROGMEM pointer from pointer table
-    const void* src = (const void*)pgm_read_word(&all_layouts[index]);
-    memcpy_P(&btn_design, src, sizeof(btn_design));
-
-    // optional: save in EEPROM for choice after power off
-    EEPROM.update(EEPROM_LAYOUT_INDEX_ADDR, index);
-}
-
-// --- layout switch (f.e. after key press or NMEA cmd) -------------
-void nextLayout() {
-    loadLayout((active_layout_index + 1) % NUM_LAYOUTS);
-}
+// Layout loading is handled by RemoteEEprom.h:
+//   loadLayoutFromEEPROM()        - boot-time restore from EEPROM
+//   loadPresetFromFlash(idx)      - select a flash preset and persist
+//   writeLayoutToEEPROM(idx)      - persist current btn_design
+//   updateKeySlot(btn, slot, ...) - modify a single key
+//   sendLayoutHealth()            - NMEA $POPSH diagnostic dump
