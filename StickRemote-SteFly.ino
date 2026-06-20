@@ -64,7 +64,6 @@ the sketch uses libraries from
 #endif
 
 #if VERSION_TYPE >= VERSION_3
-// # define MOUSE_WITH_STF_KEY
 # define WITHOUT_MOUSE
 # define EXTEND_SERIAL
 # define WAIT_FOR_ENTER
@@ -76,7 +75,6 @@ the sketch uses libraries from
 // laeuft aber auch mit Original-Caterina - dann nur eben mit 8s Wartezeit nach
 // einem WDT-Reset (was wir mit WITH_USB_REATTACH ja gerade vermeiden wollen).
 # define WITH_EARLY_WDT_DISABLE   // .init3 Hook: MCUSR=0; wdt_disable() vor setup()
-# define WITHOUT_USB_KEEPALIVE    // wdtReset() schickt kein Keyboard.write(0) mehr
 # define WITH_RESET_LOG           // MCUSR + Zaehler ins EEPROM, NMEA-Bootmsg
 # define WITH_USB_REATTACH        // sanftes Re-Enumerieren bei Suspend/Send-Stall
 # define WITH_CLEAN_RESET         // exit(1) -> wdt_enable(WDTO_15MS); while(1){}
@@ -120,13 +118,13 @@ const int dblclick_threshold    = 400;  // previous: 500;  // ms
 const unsigned long start_delay = 500;  // ms
 const unsigned int start_wait   = 2000;  // 2000;
 
-const int MouseDistance = 4;     // mouse one step (-> mouse speed and accurancy)
 const int mouse_speed_switch = 800;   // faster mouse after this time (in ms)
 //                             KEY, MOUSE
 const int joy_repeats[][2] = {{  5,   0},     // 1st reaction
                               {150, 120},     // pause after 1st press
                               { 20,   4}};     // repeat interval (long press < 800ms)
 
+/*
 // Create instances of PushButtons on digital pins
 enum {
        btnFn, btnMenu, btnX, btnSTF,
@@ -135,10 +133,11 @@ enum {
        btnPTT,
        btnSize
 };
-const byte pin_config[][btnSize] = {
+*/
+const byte pin_config[btnSize] =
 // Fn  M   X, S/V  Ent Up  Dn  Le  Rt PTT
-  { 9, 14, 15,  7,  6,  2,  4,  5,  3, -1},
-};
+  { 9, 14, 15,  7,  6,  2,  4,  5,  3, -1}
+;
 
 // define variables
 bool mouse_active = false;
@@ -163,11 +162,11 @@ unsigned long time_now = 0;
 unsigned long timeWDT = 0;
 #endif
 
-const int x = MouseDistance;
-const int y = MouseDistance;
+// const int x = MouseDistance;
+// const int y = MouseDistance;
 
 #if defined(WITH_SERIAL) 
-  const int buffer_size = 0x80;
+  const int buffer_size = 0x40;
   char send_buffer[buffer_size];
   char nmea_buffer[buffer_size];
   char send_info[buffer_size];
@@ -199,79 +198,27 @@ const int y = MouseDistance;
  X:       for quit or shutdown
  1,2,3,4: for btn_design (Pilot Event or something else)
 ------------------------------------------------------------------*/
-struct sKey {
-  byte modifier;
-  byte key;
-};
 
-struct key_struct {
-    const int Pin;
-/**/
-    sKey Click;
-    sKey LongClick;
-    sKey DblClick;   
-/*/
-    const sKey Click;
-    const sKey LongClick;
-    const sKey DblClick;   
-/**/
-};
 #define JoyKey Click
 #define JoyX   LongClick
 #define JoyY   DblClick
 
-#if defined(WITH_DBLCLICK)  // Standard Button Layout + extra: 1, 2, 3, 4, 5, E, X, managed by [events].xci 
-// const 
-sKey ee_btn[5][3] = {
-  {{0,'1'},       {0,'2'},{KEY_LEFT_ALT, KEY_TAB}},
-  {{0,KEY_F1},    {0,'M'},{0,'3'}},
-  {{0,KEY_ESC},   {0,'X'},{KEY_LEFT_GUI, KEY_RETURN}},
-  {{0,'T'},{0,'5'},{0,'6'}},
-  {{0,KEY_RETURN},{0,0},{0,0}}
-}; 
-#else // Simple Layout:
-// const 
-sKey ee_btn[5][3] = {
-{{0,'1'},       {0,'1'}, {0,  0}},
-{{0,KEY_F1},    {0,'M'},{0,  0}},
-{{0,KEY_ESC},   {0,'X'},{0,  0}},
-{{0,'V'},       {0,'V'},{0,'6'}},
-{{0,KEY_RETURN},{0, 0}, {0,  0}}
-};
-#endif
-// const 
-struct key_struct btn_design[btnSize] = {
-//  struct: Pin, Click, LongClick, DblClick 
-/* Fn  */  {pin_config[0][0], ee_btn[btnFn   ][0], ee_btn[btnFn   ][1], ee_btn[btnFn   ][2]},  // btnFn
-/* M   */  {pin_config[0][1], ee_btn[btnMenu ][0], ee_btn[btnMenu ][1], ee_btn[btnMenu ][2]},  // btnMenu: QuickMenu and AudioMenue
-/* X   */  {pin_config[0][2], ee_btn[btnX    ][0], ee_btn[btnX    ][1], ee_btn[btnX    ][2]},  // btnX: ESC and 'X' for Shutdown (or Quit)
-/* STF */  {pin_config[0][3], ee_btn[btnSTF  ][0], ee_btn[btnSTF  ][1], ee_btn[btnSTF  ][2]},  // btnSTF
-/* joy */  {pin_config[0][4], ee_btn[btnEnter][0], ee_btn[btnEnter][1], ee_btn[btnEnter][2]},  // btnEnter: joystick button
-
-/* Up */   {pin_config[0][5], {0,KEY_UP_ARROW},    {0,0},           {0,-y}},
-/* Down */ {pin_config[0][6], {0,KEY_DOWN_ARROW},  {0,0},           {0,+y}},
-/* Left */ {pin_config[0][7], {0,KEY_LEFT_ARROW},  {0,-x},          {0,0}},
-/* Right */{pin_config[0][8], {0,KEY_RIGHT_ARROW}, {0,+x},          {0,0}},
-
-/* PTT */  {pin_config[0][9] },   // btnPTT - not connected here
-
-};
 #ifdef USE_STF_TOGGLE
 char STF_key = btn_design[btnSTF].DblClick.key; 
 #endif
 
 const uint8_t pullup = ENABLE_INTERNAL_PULLUP;
 PushButton button[btnSize] = { /*`*/
-    {btn_design[btnFn]   .Pin, pullup}, // mouse switch (and 'P')
-    {btn_design[btnMenu] .Pin, pullup}, // QuickMenu and AudioMenue
-    {btn_design[btnX]    .Pin, pullup}, // ESC and 'Q'uit
-    {btn_design[btnSTF]  .Pin, pullup}, // Vario <-> Speed to Fly (STF)
-    {btn_design[btnEnter].Pin, pullup}, // joystick button
-    {btn_design[joyUp]   .Pin, pullup}, //
-    {btn_design[joyDown] .Pin, pullup}, //
-    {btn_design[joyLeft] .Pin, pullup}, //
-    {btn_design[joyRight].Pin, pullup},  //
-    {btn_design[btnPTT]  .Pin, pullup} // PTT -> not connected
+    {pin_config[btnFn]   , pullup}, // mouse switch (and 'P')
+    {pin_config[btnMenu] , pullup}, // QuickMenu and AudioMenue
+    {pin_config[btnX]    , pullup}, // ESC and 'Q'uit
+    {pin_config[btnSTF]  , pullup}, // Vario <-> Speed to Fly (STF)
+    {pin_config[btnEnter], pullup}, // joystick button
+    {pin_config[joyUp]   , pullup}, //
+    {pin_config[joyDown] , pullup}, //
+    {pin_config[joyLeft] , pullup}, //
+    {pin_config[joyRight], pullup},  //
+    {pin_config[btnPTT]  , pullup} // PTT -> not connected
 };
 
 #ifdef WITH_EARLY_WDT_DISABLE
@@ -306,9 +253,6 @@ void wdtReset() {
     if (time_now - timeWDT >= 450) {  // 2 in 1 second
         timeWDT = time_now;
         wdt_reset();
-#ifndef WITHOUT_USB_KEEPALIVE
-        Keyboard.write(0); // only a \0  (alter Keepalive, kann USB blockieren!)
-#endif
     }
 }
 #endif  // WITH_WATCHDOG
@@ -462,27 +406,51 @@ AppendNMEAChecksum(char *p)
 }
 
 // ----------------------------------------------------------------------------
-void keyEvent(const sKey key) {
-       Keyboard.press(key.modifier);
-       delay(5);
-       Keyboard.press(key.key);
-       delay(20);
-       Keyboard.release(key.key);
-#ifdef  WITH_WATCHDOG
-       for (int i=0;i<6;i++) {
-         wdtReset();
-         delay(100);
-       }
-#else
-       delay(600);
-#endif
-       Keyboard.release(key.modifier);
+// Extended Key Functions:
+// ----------------------------------------------------------------------------
+void switchMouse() {
+    mouse_active = !mouse_active;
+    sprintf_P(send_buffer+strlen(send_buffer), mouse_active ? PSTR("Mouse") :PSTR("Arrow"));
 }
 
 // ----------------------------------------------------------------------------
+void switchApp() {
+       Keyboard.press(KEY_LEFT_ALT);
+       delay(5);
+       Keyboard.press(KEY_TAB);
+       delay(20);
+       Keyboard.release(KEY_TAB);
+       for (int i=0;i<6;i++) {
+#ifdef  WITH_WATCHDOG
+         wdtReset();
+#endif
+         delay(100);
+       }
+       Keyboard.release(KEY_LEFT_ALT);
+}
+
+// ----------------------------------------------------------------------------
+void hideApp() {
+       Keyboard.press(KEY_LEFT_GUI);
+       delay(5);
+       Keyboard.press(KEY_RETURN);
+       delay(20);
+       Keyboard.release(KEY_RETURN);
+       for (int i=0;i<2;i++) {
+#ifdef  WITH_WATCHDOG
+         wdtReset();
+#endif
+         delay(100);
+       }
+       Keyboard.release(KEY_LEFT_GUI);
+}
+
+// ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 void sendNMEA(const char set, const char* line) {
    // PSRC(%set%),R: (S)tick(R)emote(C)ontrol(%set%)field, (R)emote
-    snprintf(nmea_buffer,buffer_size,"$PSRC%c,R,%s", set, line);
+    
+    snprintf_P(nmea_buffer,buffer_size,PSTR("$PSRC%c,R,%s"), set, line);
     AppendNMEAChecksum(nmea_buffer);
     Serial.println(nmea_buffer);
 }
@@ -512,13 +480,19 @@ void sendKey(const sKey key, const unsigned int info=0) {
         softReattach("not-cfg");
     }
 #endif  // WITH_USB_REATTACH
-    if (key.modifier) {
-      keyEvent(key);
-      sprintf(send_buffer+strlen(send_buffer), "%02X.%02X", key.modifier, key.key);
+    if (key.ext) {
+        switch (key.key) {
+          case MOUSE_SWITCH: switchMouse(); break;
+          case APP_SWITCH:   switchApp(); break;
+          case APP_HIDE:     hideApp(); break;
+          default: break;
+        }
+      // keyEvent(key);
+      // sprintf(send_buffer+strlen(send_buffer), "%02X.%02X", key.ext, key.key);
     } else {
       Keyboard.write(key.key);
 #if defined(WITH_SERIAL)
-     char *keycode = key_code(key.key);
+     char *keycode = key_code(key);
      if (keycode)
        strcpy(send_buffer, keycode);       
      else
@@ -544,15 +518,17 @@ void setup() {
 #ifdef WITH_SERIAL
   Serial.begin(9600);
 #endif  // WITH_SERIAL
+  uint8_t saved = EEPROM.read(EEPROM_LAYOUT_INDEX_ADDR);
+  loadLayout(saved);     // beim Boot: gespeicherte Wahl wiederherstellen
 
 #ifdef WAIT_FOR_ENTER
 // ============================================= 
 // ============================================= 
 // ============================================= 
   // wait until button 'Enter' is released
-   pinMode( btn_design[btnEnter].Pin, INPUT_PULLUP); 
+   pinMode( pin_config[btnEnter], INPUT_PULLUP); 
 #ifdef  WITH_WATCHDOG
-  while (!digitalRead(btn_design[btnEnter].Pin)) { // = isPressed
+  while (!digitalRead(pin_config[btnEnter])) { // = isPressed
     wdtReset();
     delay(200);
   }
@@ -568,7 +544,9 @@ void setup() {
 
 /* TODO(August2111): This is a (bad) workaround for strcpy: the first cmd 
    in source code - not in calling behaviour - have a bit failure inside...:*/
-  strcpy(send_info, "zzzzzzzzzzzzzzzzzzzzzzzz");
+  // strncpy_P(send_info, PSTR("zzzzzzzzzzzzzzzzzzzzzzzz"), buffer_size);
+  memset(send_info, 'z', buffer_size);
+  send_info[buffer_size-1] = 0;
   
   // normal key buttons:
   for (int i = 0;i <= btnEnter; i++) {
@@ -588,6 +566,60 @@ void setup() {
   startTime = millis();  // overflow after ~50 days
 }
 
+// ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// SendCommands:
+/*
+      case 'v': snprintf_P(send_info, buffer_size, PSTR("Version,%s"), Version); break;
+      case 'd': snprintf_P(send_info, buffer_size, PSTR("Device,%s"), Device);break;
+      case 'u': snprintf_P(send_info, buffer_size, PSTR("FileDate,%s"), Date);break;
+      case 'f': snprintf_P(send_info, buffer_size, PSTR("FileName,%s"), FileName);break;  
+      case 't': snprintf_P(send_info, buffer_size, PSTR("systime,%u"), time_now);break;
+*/
+void sendVersion() {
+    snprintf_P(send_info, buffer_size, PSTR("Version,%s"), Version);
+    sendNMEA('I',send_info);
+}
+// ----------------------------------------------------------------------------
+void sendDevice() {
+    snprintf_P(send_info, buffer_size, PSTR("Device,%s"), Device);
+    sendNMEA('I',send_info);
+}
+// ----------------------------------------------------------------------------
+void sendFileDate() {
+    snprintf_P(send_info, buffer_size, PSTR("FileDate,%s"), Date);
+    sendNMEA('I',send_info);
+}
+// ----------------------------------------------------------------------------
+void sendFileName() {
+    snprintf_P(send_info, buffer_size, PSTR("FileName,%s"), FileName);
+    sendNMEA('I',send_info);
+}
+// ----------------------------------------------------------------------------
+void sendTime() {
+    snprintf_P(send_info, buffer_size, PSTR("systime,%u"), time_now);
+    sendNMEA('I',send_info);
+}
+// ----------------------------------------------------------------------------
+void resetCmd() {
+#ifdef WITH_SERIAL
+    sendNMEA('I', "Reset(Serial)");
+    Serial.flush();
+# endif
+
+    wdt_enable(WDTO_15MS); // much faster...
+    while (1) { }
+}
+// ----------------------------------------------------------------------------
+void readPOPSQ(const char* cmd) {
+       if (!strcmp_P(cmd, PSTR("Version")))  sendVersion();  
+  else if (!strcmp_P(cmd, PSTR("Device")))   sendDevice();  
+  else if (!strcmp_P(cmd, PSTR("FileDate"))) sendFileDate();  
+  else if (!strcmp_P(cmd, PSTR("FileName"))) sendFileName();  
+  else if (!strcmp_P(cmd, PSTR("Time")))     sendTime();  
+  else if (!strcmp_P(cmd, PSTR("Reboot")))   resetCmd();  
+}
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
@@ -673,11 +705,6 @@ void loop() {
   }
 #endif
 
-# ifdef MOUSE_WITH_STF_KEY
-    mouse_active =  button[btnSTF].isPressed();
-# endif  // MOUSE_WITH_STF_KEY
-
-// #if VERSION_TYPE > VERSION_OLD
 #ifdef  WITH_WATCHDOG
   wdtReset();
 #endif
@@ -702,7 +729,8 @@ void loop() {
           read_buffer[l] = 0;
           if (read_buffer[l - 3] == '*') read_buffer[l - 3] = 0;
           if (!strncmp(read_buffer + 1, "POPSQ,", 6))
-             sendNMEA('S', read_buffer + 7);
+              readPOPSQ(read_buffer + 7);
+             // sendNMEA('S', read_buffer + 7);
           else 
              Serial.println(read_buffer); /*TEST */
         } 
@@ -723,33 +751,40 @@ void loop() {
     return; 
 #endif  // defined(EXTEND_SERIAL)
     switch (c | 0x20) {  // one char allowed only
-      case 'v': sprintf(send_info, "Version,%s", Version); break;
-      case 'd': sprintf(send_info, "Device,%s", Device);break;
-      case 'u': sprintf(send_info, "FileDate,%s", Date);break;
-      case 'f': sprintf(send_info, "FileName,%s", FileName);break;  
-      case 't': sprintf(send_info, "systime,%u", time_now);break;
+      // case 'v': snprintf_P(send_info, buffer_size, PSTR("Version,%s"), Version); break;
+      case 'v': sendVersion();return;
+      case 'd': snprintf_P(send_info, buffer_size, PSTR("Device,%s"), Device);break;
+      case 'u': snprintf_P(send_info, buffer_size, PSTR("FileDate,%s"), Date);break;
+      case 'f': snprintf_P(send_info, buffer_size, PSTR("FileName,%s"), FileName);break;  
+      case 't': snprintf_P(send_info, buffer_size, PSTR("systime,%u"), time_now);break;
       case '0': 
-      case '1': {
+      case '1': 
+      case '2': 
+      {
         char l = c-'0';
-         // _memcpy(ee_btn, &key_layout[c-'0'], sizeof(key_layout[0]));
-         // _memcpy(&btn_design[0].Click, &key_layout[l][0], 3*2);  //sizeof(key_layout[0]));
-         sprintf(send_info, "keyLayout, %c-%c-%c", btn_design[0].Click.key, btn_design[0].LongClick.key, '!'); // btn_design[0].DblClick.key);
-         sendNMEA('X',send_info);
-         btn_design[0].Click.key =  'x'; //key_layout[l][0][2][1];
-         btn_design[1].Click.key =  'Y'; //key_layout[l][0][2][1];
-         sKey test =  {0, '9'};
-         _memcpy(&btn_design[0].Click, &test, 2);
-         // memcpy(&btn_design[0].Click, &key_layout[l], 2);  //sizeof(key_layout[0]));
-         // btn_design[0].Click = {0, 'N'};
-         // _memcpy(&ee_btn[0][0], &key_layout[0][0][0][0],  5*3*2);
-         sprintf(send_info, "keyLayout, %c-%c-%c", btn_design[0].Click.key, btn_design[0].LongClick.key,  '!'); // btn_design[0].DblClick.key);btn_design[0].DblClick.key);
-         sendNMEA('X',send_info);
-         sprintf(send_info, "keyLayout, %c", c);
+//         snprintf_P(send_info, buffer_size, PSTR("keyLayout, %c-%c-%c"), btn_design[0].Click.key, btn_design[0].LongClick.key, '!'); // btn_design[0].DblClick.key);
+//         sendNMEA('X',send_info);
+/*/
+         for (int i=0; i<5; i++) 
+           // memcpy(&btn_design[i].Click, &key_layout[l][i], sizeof(key_layout[0][0]));
+           _memcpy(&btn_design[i].Click, &key_layout[l][i], sizeof(key_layout[0][0]));
+/*/
+         loadLayout(l);
+/**/
+         snprintf_P(send_info, buffer_size, PSTR("keyLayout %d (%d): "), l,
+                    sizeof(btn_design));
+        strcat(send_info, key_code(btn_design[0].Click));
+        strcat(send_info, "-");
+        strcat(send_info, key_code(btn_design[0].LongClick));
+        strcat(send_info, "-");
+        strcat(send_info, key_code(btn_design[0].DblClick));
+         // sendNMEA('X',send_info);
+         // sprintf(send_info, "keyLayout, %c", c);
       }
       break;
 
       default:  
-               // if (isprint(c)) sprintf(send_info, "Key,%c", c);
+               // if (isprint(c)) snprintf_P(send_info, buffer_size, PSTR("Key,%c"), c);
                break; 
     } 
     if (*send_info) {
@@ -760,29 +795,10 @@ void loop() {
 }
 
 // ----------------------------------------------------------------------------
-void onEnter(PushButton& btn) {
-    if (mouse_active) 
-      Mouse.click(MOUSE_LEFT);
-    else {
-      if (btn_design[0].Click.key) {
-         sendKey(btn_design[0].Click);
-      }
-    }
-}
-
-#ifndef MOUSE_WITH_STF_KEY
-#ifndef WITHOUT_MOUSE
-void onMouseMode(PushButton& btn){
-    mouse_active = !mouse_active;
-}
-#endif
-#endif
-
 #ifdef WITH_DBLCLICK
 bool DblClickTest(int index) {
   if (BtnClickTime[index] > 0) { //-> DoubleClick!
      int click_time = time_now - BtnClickTime[index];
-     // Serial.println(click_time);  /* TEST */
      DblClickTime[index] = time_now;
      BtnClickTime[index] = 0;
      if (btn_design[index].DblClick.key)
@@ -792,11 +808,7 @@ bool DblClickTest(int index) {
      
   } else {
     if (time_now - DblClickTime[index] > 1000) { //
-      //if (btn_design[index].Click) {
-        // Serial.println(time_now - BtnClickTime[index]);
         BtnClickTime[index] = time_now;
-        // test_time = time_now;
-      // }
     }
   }
   return false;
@@ -818,7 +830,7 @@ void onReset(PushButton& btn) {
 #endif  // WITH_SERIAL
 
 #ifdef  WITH_WATCHDOG
-  while (!digitalRead(btn_design[btnEnter].Pin)) { // = isPressed
+  while (!digitalRead(pin_config[btnEnter])) { // = isPressed
     wdtReset();
     delay(200);
   }
@@ -859,7 +871,7 @@ void onDblClick(PushButton& btn){
 }
  
 // ----------------------------------------------------------------------------
-void onJoyArrow(PushButton& btn) { //
+void onJoyArrow(PushButton& btn) {
   int index = &btn - button;
 #if VERSION_TYPE == VERSION_OLD
   // without diagonal movement of the mouse like the old sketch
@@ -882,22 +894,11 @@ void onJoyArrow(PushButton& btn) { //
       joy_counter[index] = 0;
     }
     if (joy_counter[index] >= key_bounce) {
-/*
       if (mouse_active) {
-        // Mouse.move(btn_design[index][JOY_X], btn_design[index][JOY_Y]);
         Mouse.move(btn_design[index].JoyX.key, btn_design[index].JoyY.key);
-      } else { // mouse not active
-        sendKey(btn_design[index].key);
-        sendKey(btn_design[index].key);
-      }
-/*/
-      if (mouse_active) {
-        // Mouse.move(btn_design[index][JOY_X], btn_design[index][JOY_Y]);
-        Mouse.move(btn_design[index].JoyX.modifier, btn_design[index].JoyY.modifier);
       } else { // mouse not active
         sendKey(btn_design[index].JoyKey);
       }
-/**/
       switch(repeat_mode[index]) {
         case 0: 
         case 1: repeat_mode[index]++;break; 
