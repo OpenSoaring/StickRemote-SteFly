@@ -13,6 +13,17 @@ the code is started wit the OpenVario script 'Stick_Remote_Control_20170429.ino'
 available at http://ftp.openvario.org/Stick_Remote_Control_20170429.ino (see:
 https://www.openvario.org/doku.php?id=projects:remote_00:top)
 
+// examle seral communications:
+// * $POPSL,N - select flash preset N as active layout (0 - 2)
+// * $POPSK,1,2,0,67 - update btnMenu, DblClick, 0, 'C'
+// * $POPSH - request layout health dump
+// * $POPSQ,    readPOPSQ(read_buffer + 7);
+//    * "Version"  sendVersion();  
+//    * "Device"   sendDevice();  
+//    * "FileDate" sendFileDate();  
+//    * "FileName" sendFileName();  
+//    * "Time"     sendTime();  
+//    * "Reboot"   resetCmd();  
 
 the sketch uses libraries from
 * https://github.com/thomasfredericks/Bounce2  - part of PushButton
@@ -745,8 +756,7 @@ void loop() {
               sendNMEA('I', send_info);
           }
           // $POPSK,btn,slot,ext,key - update single key entry (slot: 0=Click,1=LongClick,2=DblClick)
-          // example: 
-          // $POPSK,1,2,0,65 - update btMenu, DblClick, 0, 'A'
+          // example: $POPSK,1,2,0,67 - update btMenu, DblClick, 0, 'C'
           else if (!strncmp(read_buffer + 1, "POPSK,", 6)) {
               uint8_t btn, slot, ext, key;
               if (sscanf(read_buffer + 7, "%hhu,%hhu,%hhu,%hhu",
