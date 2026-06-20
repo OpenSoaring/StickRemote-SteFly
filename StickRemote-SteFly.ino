@@ -146,10 +146,10 @@ enum {
        btnSize
 };
 */
-const byte pin_config[btnSize] =
-// Fn  M   X, S/V  Ent Up  Dn  Le  Rt PTT
-  { 9, 14, 15,  7,  6,  2,  4,  5,  3, -1}
-;
+// Pin assignment now lives in active_pin_config[] (declared in RemoteEEprom.h),
+// loaded from EEPROM at boot (or from default_pin_config PROGMEM on first boot).
+// The button[] array below is initialized with a harmless dummy pin (13 = LED_BUILTIN)
+// and the real pins are attached in setup() after active_pin_config has been loaded.
 
 // define variables
 bool mouse_active = false;
@@ -220,17 +220,11 @@ char STF_key = btn_design[btnSTF].DblClick.key;
 #endif
 
 const uint8_t pullup = ENABLE_INTERNAL_PULLUP;
-PushButton button[btnSize] = { /*`*/
-    {pin_config[btnFn]   , pullup}, // mouse switch (and 'P')
-    {pin_config[btnMenu] , pullup}, // QuickMenu and AudioMenue
-    {pin_config[btnX]    , pullup}, // ESC and 'Q'uit
-    {pin_config[btnSTF]  , pullup}, // Vario <-> Speed to Fly (STF)
-    {pin_config[btnEnter], pullup}, // joystick button
-    {pin_config[joyUp]   , pullup}, //
-    {pin_config[joyDown] , pullup}, //
-    {pin_config[joyLeft] , pullup}, //
-    {pin_config[joyRight], pullup},  //
-    {pin_config[btnPTT]  , pullup} // PTT -> not connected
+// Dummy pin 13 (= LED_BUILTIN) is harmless during the brief window between
+// static initialization and the attach() calls in setup().
+PushButton button[btnSize] = {
+    {13, pullup}, {13, pullup}, {13, pullup}, {13, pullup}, {13, pullup},
+    {13, pullup}, {13, pullup}, {13, pullup}, {13, pullup}, {13, pullup}
 };
 
 #ifdef WITH_EARLY_WDT_DISABLE
@@ -531,6 +525,20 @@ void setup() {
   Serial.begin(9600);
 #endif  // WITH_SERIAL
 
+  // Load pin assignment (hardware mapping) from EEPROM. On first boot or
+  // corruption, falls back to factory default and persists it. Must happen
+  // before attach() calls below and before WAIT_FOR_ENTER reads pin state.
+  loadPinConfig();
+
+  // Bind each PushButton to its actual MCU pin. Unconnected buttons (pin 0xFF)
+  // are left bound to the dummy pin from static init - the mainloop ignores
+  // them via the layout's Click/LongClick/DblClick == 0 check.
+  for (uint8_t i = 0; i < btnSize; i++) {
+      if (active_pin_config[i] != 0xFF) {
+          button[i].attach(active_pin_config[i], pullup);
+      }
+  }
+
   // Restore layout from EEPROM with dual-slot health-voting + self-heal.
   // If both slots are corrupt or never initialized, fall back to flash preset 0.
   if (!loadLayoutFromEEPROM()) {
@@ -538,13 +546,13 @@ void setup() {
   }
 
 #ifdef WAIT_FOR_ENTER
-// ============================================= 
-// ============================================= 
-// ============================================= 
+// =============================================
+// =============================================
+// =============================================
   // wait until button 'Enter' is released
-   pinMode( pin_config[btnEnter], INPUT_PULLUP); 
+   pinMode(active_pin_config[btnEnter], INPUT_PULLUP);
 #ifdef  WITH_WATCHDOG
-  while (!digitalRead(pin_config[btnEnter])) { // = isPressed
+  while (!digitalRead(active_pin_config[btnEnter])) { // = isPressed
     wdtReset();
     delay(200);
   }
@@ -773,6 +781,27 @@ void loop() {
           else if (!strncmp(read_buffer + 1, "POPSH", 5)) {
               sendLayoutHealth();
           }
+          // $POPSPS,btn,pin - SERVICE command: assign a new pin to a button.
+          // Triggers a clean reset so the new pin assignment takes effect.
+          // Use sparingly - this is for hardware reconfiguration, not user use.
+          else if (!strncmp(read_buffer + 1, "POPSPS,", 7)) {
+              uint8_t btn, pin;
+              if (sscanf(read_buffer + 8, "%hhu,%hhu", &btn, &pin) == 2
+                  && btn < btnSize) {
+                  uint8_t pins[btnSize];
+                  if (!loadPinConfigFromEEPROM(pins)) {
+                      memcpy_P(pins, default_pin_config, btnSize);
+                  }
+                  pins[btn] = pin;
+                  savePinConfigToEEPROM(pins);
+                  sendNMEA('I', "PinConfig updated, restarting");
+                  Serial.flush();
+                  wdt_enable(WDTO_15MS);
+                  while (1) { }   // clean reset, new config takes effect on reboot
+              } else {
+                  sendNMEA('I', "POPSPS parse error or btn out of range");
+              }
+          }
           else
              Serial.println(read_buffer); /*TEST */
         } 
@@ -864,7 +893,7 @@ void onReset(PushButton& btn) {
 #endif  // WITH_SERIAL
 
 #ifdef  WITH_WATCHDOG
-  while (!digitalRead(pin_config[btnEnter])) { // = isPressed
+  while (!digitalRead(active_pin_config[btnEnter])) { // = isPressed
     wdtReset();
     delay(200);
   }
