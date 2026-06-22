@@ -68,6 +68,12 @@ the sketch uses libraries from
 #include "RemoteStick.h"
 #include "RemoteEEprom.h"   // dual-slot EEPROM persistence (uses btn_design + all_layouts)
 
+// Placement-new operator. Needed because the r89m/PushButton library does
+// not expose Bounce::attach(), so we rebind buttons to their pins by
+// re-constructing the PushButton object in-place at runtime (after the
+// EEPROM-stored pin assignment is loaded in setup()).
+inline void* operator new(size_t, void* ptr) noexcept { return ptr; }
+
 #if VERSION_TYPE >= VERSION_2
 # include "avr/wdt.h"
 # define WITH_WATCHDOG
@@ -530,12 +536,14 @@ void setup() {
   // before attach() calls below and before WAIT_FOR_ENTER reads pin state.
   loadPinConfig();
 
-  // Bind each PushButton to its actual MCU pin. Unconnected buttons (pin 0xFF)
-  // are left bound to the dummy pin from static init - the mainloop ignores
-  // them via the layout's Click/LongClick/DblClick == 0 check.
+  // Bind each PushButton to its actual MCU pin. Because PushButton has no
+  // attach() method exposed, we use placement-new to re-construct the object
+  // in-place with the correct pin. Unconnected buttons (pin 0xFF) keep their
+  // dummy-pin object from static init - the mainloop ignores them anyway via
+  // the layout's Click/LongClick/DblClick == 0 check.
   for (uint8_t i = 0; i < btnSize; i++) {
       if (active_pin_config[i] != 0xFF) {
-          button[i].attach(active_pin_config[i], pullup);
+          new (&button[i]) PushButton(active_pin_config[i], pullup);
       }
   }
 
