@@ -3,18 +3,20 @@ struct sKey {
   uint8_t key;
 };
 
-#define KEY_STANDARD 0
-#define KEY_EXTEND   1
+#define KEY_STANDARD        0
+#define KEY_EXTEND          1
 
-#define MOUSE_SWITCH   1
-#define APP_SWITCH     2
-#define APP_HIDE       3
+#define MOUSE_SWITCH        1
+#define APP_SWITCH          2
+#define APP_HIDE            3
+#define TOOGLE_STF_VARIO    4
 
 // #define KEY_APP_SWITCH {KEY_LEFT_ALT, KEY_TAB}
 // #define KEY_APP_HIDE   {KEY_LEFT_GUI, KEY_RETURN}
 #define KEY_MOUSE_SWITCH {KEY_EXTEND, MOUSE_SWITCH}
 #define KEY_APP_SWITCH   {KEY_EXTEND, APP_SWITCH}
 #define KEY_APP_HIDE     {KEY_EXTEND, APP_HIDE}
+#define KEY_TOGGLE_S_V   {KEY_EXTEND, TOOGLE_STF_VARIO}
 
 struct key_struct {
 //    uint8_t Pin;  // cannot be set later, has to be initialized before setup
@@ -73,11 +75,26 @@ enum {
 };
 
 // --- Flash-residente Layouts ------------------------------------------------
-const PROGMEM struct key_struct layout_default[btnSize] = {
+const PROGMEM struct key_struct layout_basic[btnSize] = {
 /* Fn  */  { KEY_MOUSE_SWITCH,    KEY_MOUSE_SWITCH, {0,  0}},   
 /* M   */  { {0,KEY_F1},          {0,'M'},{0,  0}},   // QuickMenu and AudioMenue
 /* X   */  { {0,KEY_ESC},         {0,'X'},{0,  0}},   // ESC and 'X' for Shutdown (or Quit)
-/* STF */  { {0,'V'},             {0,'V'},{0,'6'}},   
+/* STF */  { KEY_TOGGLE_S_V,      KEY_TOGGLE_S_V, 0},   
+/* joy */  { {0,KEY_RETURN},      {0, 0}, {0,  0}},   // joystick button
+/* Up */   { {0,KEY_UP_ARROW},    {0, 0}, {0, -4}},
+/* Down */ { {0,KEY_DOWN_ARROW},  {0, 0}, {0, +4}},
+/* Left */ { {0,KEY_LEFT_ARROW},  {0,-4}, {0,  0}},
+/* Right */{ {0,KEY_RIGHT_ARROW}, {0,+4}, {0,  0}},
+
+/* PTT */  { -1 },   // btnPTT - not connected here
+};
+
+const PROGMEM struct key_struct layout_standard[btnSize] = {
+    // ... eigene XCSoar-Variante
+/* Fn  */  { {0,'X'},             {0,'C'},{0,  'S'}},
+/* M   */  { {0,KEY_F1},          {0,'M'},{0,  0}},   // QuickMenu and AudioMenue
+/* X   */  { {0,KEY_ESC},         {0,'X'},{0,  0}},   // ESC and 'X' for Shutdown (or Quit)
+/* STF */  { {0,'V'},             {0,'V'},{0,'6'}},
 /* joy */  { {0,KEY_RETURN},      {0, 0}, {0,  0}},   // joystick button
 /* Up */   { {0,KEY_UP_ARROW},    {0, 0}, {0, -4}},
 /* Down */ { {0,KEY_DOWN_ARROW},  {0, 0}, {0, +4}},
@@ -119,7 +136,7 @@ const PROGMEM struct key_struct layout_openvario[btnSize] = {
 
 // Pointer-Tabelle auf alle Layouts (Pointer SELBST auch im Flash)
 const PROGMEM void* const all_layouts[] = {
-    layout_default,
+    layout_basic,
     layout_xcsoar,
     layout_openvario,
 };

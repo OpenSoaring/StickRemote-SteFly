@@ -98,9 +98,6 @@ inline void* operator new(size_t, void* ptr) noexcept { return ptr; }
 # define WITH_CLEAN_RESET         // exit(1) -> wdt_enable(WDTO_15MS); while(1){}
 #endif
 
-// disable the next define if you have a BUTTON instead a TOGGLE SWITCH: 
-#define USE_STF_TOGGLE
-
 const char* Device  = "Stick Remote Control (SteFly)";
 const char* Date    = __DATE__;  // = Compile Date: "2025-01-24";
 #if VERSION_TYPE  == VERSION_OLD
@@ -221,9 +218,7 @@ unsigned long timeWDT = 0;
 #define JoyX   LongClick
 #define JoyY   DblClick
 
-#ifdef USE_STF_TOGGLE
-char STF_key = btn_design[btnSTF].DblClick.key; 
-#endif
+sKey STF_key = {0,'V'}; 
 
 const uint8_t pullup = ENABLE_INTERNAL_PULLUP;
 // Dummy pin 13 (= LED_BUILTIN) is harmless during the brief window between
@@ -418,47 +413,6 @@ AppendNMEAChecksum(char *p)
 }
 
 // ----------------------------------------------------------------------------
-// Extended Key Functions:
-// ----------------------------------------------------------------------------
-void switchMouse() {
-    mouse_active = !mouse_active;
-    sprintf_P(send_buffer+strlen(send_buffer), mouse_active ? PSTR("Mouse") :PSTR("Arrow"));
-}
-
-// ----------------------------------------------------------------------------
-void switchApp() {
-       Keyboard.press(KEY_LEFT_ALT);
-       delay(5);
-       Keyboard.press(KEY_TAB);
-       delay(20);
-       Keyboard.release(KEY_TAB);
-       for (int i=0;i<6;i++) {
-#ifdef  WITH_WATCHDOG
-         wdtReset();
-#endif
-         delay(100);
-       }
-       Keyboard.release(KEY_LEFT_ALT);
-}
-
-// ----------------------------------------------------------------------------
-void hideApp() {
-       Keyboard.press(KEY_LEFT_GUI);
-       delay(5);
-       Keyboard.press(KEY_RETURN);
-       delay(20);
-       Keyboard.release(KEY_RETURN);
-       for (int i=0;i<2;i++) {
-#ifdef  WITH_WATCHDOG
-         wdtReset();
-#endif
-         delay(100);
-       }
-       Keyboard.release(KEY_LEFT_GUI);
-}
-
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
 void sendNMEA(const char set, const char* line) {
    // PSRC(%set%),R: (S)tick(R)emote(C)ontrol(%set%)field, (R)emote
     
@@ -494,9 +448,10 @@ void sendKey(const sKey key, const unsigned int info=0) {
 #endif  // WITH_USB_REATTACH
     if (key.ext) {
         switch (key.key) {
-          case MOUSE_SWITCH: switchMouse(); break;
-          case APP_SWITCH:   switchApp(); break;
-          case APP_HIDE:     hideApp(); break;
+          case MOUSE_SWITCH:    switchMouse(); break;
+          case APP_SWITCH:      switchApp(); break;
+          case APP_HIDE:        hideApp(); break;
+          case TOOGLE_STF_VARIO:toggleSpeedToFly_Vario(); break;
           default: break;
         }
       // keyEvent(key);
@@ -521,6 +476,54 @@ void sendKey(const sKey key, const unsigned int info=0) {
     }
 #endif // defined(WITH_SERIAL2) 
 }
+// ----------------------------------------------------------------------------
+// Extended Key Functions:
+// ----------------------------------------------------------------------------
+void switchMouse() {
+    mouse_active = !mouse_active;
+    sprintf_P(send_buffer+strlen(send_buffer), mouse_active ? PSTR("Mouse") :PSTR("Arrow"));
+}
+
+// ----------------------------------------------------------------------------
+void toggleSpeedToFly_Vario() {
+  // use a SWITCH to enable Vario or Speed To Fly mode
+  STF_key.key = (STF_key.key == 'V') ? 'S' : 'V';
+  sendKey(STF_key);
+}
+
+// ----------------------------------------------------------------------------
+void switchApp() {
+       Keyboard.press(KEY_LEFT_ALT);
+       delay(5);
+       Keyboard.press(KEY_TAB);
+       delay(20);
+       Keyboard.release(KEY_TAB);
+       for (int i=0;i<6;i++) {
+#ifdef  WITH_WATCHDOG
+         wdtReset();
+#endif
+         delay(100);
+       }
+       Keyboard.release(KEY_LEFT_ALT);
+}
+
+// ----------------------------------------------------------------------------
+void hideApp() {
+       Keyboard.press(KEY_LEFT_GUI);
+       delay(5);
+       Keyboard.press(KEY_RETURN);
+       delay(20);
+       Keyboard.release(KEY_RETURN);
+       for (int i=0;i<2;i++) {
+#ifdef  WITH_WATCHDOG
+         wdtReset();
+#endif
+         delay(100);
+       }
+       Keyboard.release(KEY_LEFT_GUI);
+}
+
+// ----------------------------------------------------------------------------
 // ============================================= 
 // ============================================= 
 // ============================================= 
