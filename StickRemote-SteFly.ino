@@ -116,7 +116,7 @@ const char* Date    = __DATE__;  // = Compile Date: "2025-01-24";
   const char* Version = "unknown";
 #endif
 
-const char *VersionStr = "Version,";
+// const char *VersionStr = "Version,";
 
 // check Linux delimiter and/or Window delimiter: 
 const char* FileName  = (strrchr(__FILE__, '/') ?                     \
@@ -127,7 +127,6 @@ const char* FileName  = (strrchr(__FILE__, '/') ?                     \
 const int joy_rebounce_interval = 3;
 const int button_hold_threshold = 900;
 const int enter_hold_threshold  = 2000;
-const int button_long_hold      = 5000;  // = 5 seconds
 const int joy_hold_threshold    = 80;
 const int dblclick_threshold    = 400;  // previous: 500;  // ms
 const unsigned long start_delay = 500;  // ms
@@ -584,10 +583,13 @@ void setup() {
   send_info[buffer_size-1] = 0;
   
   // normal key buttons:
-  for (int i = 0;i <= btnEnter; i++) {
+  for (int i = 0;i < btnEnter; i++) {
     button[i].onRelease(0,button_hold_threshold-1, onButtonClick);
-    button[i].onHold(button_hold_threshold, onDblClick);
+    button[i].onHold(button_hold_threshold, onLongClick);
   }
+  // Enter has a different threshold:
+  button[btnEnter].onRelease(0,enter_hold_threshold-1, onButtonClick);
+  button[btnEnter].onHold(enter_hold_threshold, onLongClick);
   // joy stick arrow button
   for (int i = joyUp;i <= joyRight; i++) {
      button[i].onHoldRepeat(joy_hold_threshold, joy_rebounce_interval, onJoyArrow);
@@ -668,7 +670,11 @@ void loop() {
        // Serial.println(time_now - BtnClickTime[index]);  /* TEST */
        BtnClickTime[index] = 0;
        if (btn_design[index].Click.key) { // [KEY_PRESSED]) {
-         sendKey(btn_design[index].Click);
+         if (mouse_active && index == btnEnter) {
+           Mouse.release(MOUSE_LEFT);
+           // Mouse.press(MOUSE_LEFT);
+         } else
+           sendKey(btn_design[index].Click);
        }
     }
   }
@@ -883,6 +889,9 @@ bool DblClickTest(int index) {
   } else {
     if (time_now - DblClickTime[index] > 1000) { //
         BtnClickTime[index] = time_now;
+        if (mouse_active && index == btnEnter) {
+           Mouse.press(MOUSE_LEFT);
+        }
     }
   }
   return false;
@@ -891,9 +900,9 @@ bool DblClickTest(int index) {
 
 // ----------------------------------------------------------------------------
 void onButtonClick(PushButton& btn){
+
 #ifdef WITH_DBLCLICK
   DblClickTest(&btn - button);
-  //int index = &btn - button;
 #endif  // WITH_DBLCLICK
 }
 
@@ -930,9 +939,9 @@ void onBtnHeldTopLeft(PushButton& btn){
 }
 
 // ----------------------------------------------------------------------------
-void onDblClick(PushButton& btn){
+void onLongClick(PushButton& btn){
   int index = &btn - button;
-  if (index==btnEnter) {
+  if (index == btnEnter) {
     onReset(btn);
   } else {
     if (btn_design[index].LongClick.key) {
