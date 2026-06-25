@@ -61,12 +61,27 @@ def find_avrdude() -> str | None:
     """Sucht eine avrdude-Binary. Reihenfolge: mitgelieferte Toolchain ->
     System-PATH -> Arduino-IDE 2 -> Arduino-IDE 1.x. Gibt None zurueck,
     wenn nichts gefunden."""
-    # 0) Mitgelieferte Toolchain im Projektordner (portable, ohne IDE-Install)
+    # 0) Mitgelieferte Toolchain im Projektordner (portable, ohne IDE-Install).
+    #    Unter Linux kann zusaetzlich nach <arch>-Unterordner gesucht werden,
+    #    um mehrere Architekturen in einem Repo zu pflegen.
     here = Path(__file__).resolve().parent
-    for bundled in (
-        here / "avrdude" / ("avrdude.exe" if sys.platform == "win32" else "avrdude"),
-        here / "avrdude" / "bin" / ("avrdude.exe" if sys.platform == "win32" else "avrdude"),
-    ):
+    exe_name = "avrdude.exe" if sys.platform == "win32" else "avrdude"
+    import platform as _pf
+    arch = _pf.machine().lower()  # 'x86_64', 'aarch64', 'armv7l', 'arm64', etc.
+    bundled_candidates = [
+        here / "avrdude" / exe_name,
+        here / "avrdude" / "bin" / exe_name,
+    ]
+    if sys.platform.startswith("linux"):
+        bundled_candidates += [
+            here / "avrdude" / f"linux-{arch}" / "bin" / exe_name,
+            here / "avrdude" / f"linux-{arch}" / exe_name,
+        ]
+    elif sys.platform == "darwin":
+        bundled_candidates += [
+            here / "avrdude" / f"darwin-{arch}" / "bin" / exe_name,
+        ]
+    for bundled in bundled_candidates:
         if bundled.exists():
             return str(bundled)
 
@@ -100,6 +115,110 @@ def find_avrdude() -> str | None:
                 candidates.append(exe)
 
     return str(candidates[0]) if candidates else None
+
+
+def offer_install_avrdude() -> bool:
+    """Bietet dem User interaktiv an, avrdude per System-Paket-Manager zu
+    installieren. Bevorzugt das Bootstrap-Skript im selben Tools-Ordner,
+    fuer Linux/macOS/Termux. Auf Windows wird die Frage uebersprungen, weil
+    es dort keinen Standard-Paket-Manager fuer avrdude gibt.
+
+    Returns True, wenn avrdude nach dem Vorgang im PATH verfuegbar ist.
+    """
+    # Nicht interaktiv? -> keine Prompt-Frage stellen
+    if not sys.stdin.isatty():
+        return False
+
+    suggestion = suggest_avrdude_install()
+    if not suggestion or sys.platform == "win32":
+        return False
+
+    print(f"[programmer] avrdude kann via System-Paket-Manager installiert werden:",
+          file=sys.stderr)
+    print(f"[programmer]   {suggestion}", file=sys.stderr)
+    try:
+        answer = input("[programmer] Jetzt installieren? [J/n] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+
+    if answer not in ("", "j", "ja", "y", "yes"):
+        return False
+
+    here = Path(__file__).resolve().parent
+    bootstrap = here / "bootstrap-avrdude.sh"
+
+    if bootstrap.exists():
+        print(f"[programmer] Starte {bootstrap.name} ...", file=sys.stderr)
+        try:
+            # bash explizit aufrufen, falls Skript nicht ausfuehrbar markiert ist
+            result = subprocess.run(["bash", str(bootstrap)], check=False)
+        except FileNotFoundError:
+            print("[programmer] bash nicht gefunden - kann Bootstrap-Skript nicht starten.",
+                  file=sys.stderr)
+            return False
+        if result.returncode != 0:
+            print(f"[programmer] Installation fehlgeschlagen (Exit-Code {result.returncode}).",
+                  file=sys.stderr)
+            return False
+    else:
+        # Fallback: direkt den Vorschlag-Befehl ueber die Shell laufen lassen
+        print(f"[programmer] Fuehre aus: {suggestion}", file=sys.stderr)
+        try:
+            result = subprocess.run(suggestion, shell=True, check=False)
+        except Exception as e:
+            print(f"[programmer] Installation fehlgeschlagen: {e}", file=sys.stderr)
+            return False
+        if result.returncode != 0:
+            return False
+
+    # Verifikation: avrdude jetzt wirklich da?
+    found = find_avrdude()
+    if found:
+        print(f"[programmer] avrdude jetzt installiert: {found}", file=sys.stderr)
+        return True
+    return False
+
+
+def suggest_avrdude_install() -> str | None:
+    """Gibt einen plattform- und distro-spezifischen Install-Befehl als String
+    zurueck, falls keine avrdude-Binary gefunden wurde. Wird in der Fehler-
+    meldung mit ausgegeben, damit der User direkt weiss, was zu tun ist."""
+    if sys.platform == "darwin":
+        return "brew install avrdude"
+    if sys.platform == "win32":
+        return ("avrdude entweder via Arduino-IDE installieren oder portable Version\n"
+                "       in tools\\avrdude\\ ablegen (avrdude.exe + avrdude.conf + libusb0.dll)")
+    if sys.platform.startswith("linux"):
+        # /etc/os-release auswerten fuer die richtige Paket-Manager-Befehlszeile
+        try:
+            with open("/etc/os-release") as f:
+                os_id = ""
+                like = ""
+                for line in f:
+                    if line.startswith("ID="):
+                        os_id = line.split("=", 1)[1].strip().strip('"').lower()
+                    elif line.startswith("ID_LIKE="):
+                        like = line.split("=", 1)[1].strip().strip('"').lower()
+                checks = (os_id, *like.split())
+                for ident in checks:
+                    if ident in ("debian", "ubuntu", "raspbian", "mint", "pop"):
+                        return "sudo apt update && sudo apt install -y avrdude"
+                    if ident in ("fedora", "rhel", "centos"):
+                        return "sudo dnf install -y avrdude"
+                    if ident in ("arch", "manjaro", "endeavouros"):
+                        return "sudo pacman -S --noconfirm avrdude"
+                    if ident in ("opensuse-leap", "opensuse-tumbleweed", "suse"):
+                        return "sudo zypper install -y avrdude"
+                    if ident == "alpine":
+                        return "sudo apk add avrdude"
+        except FileNotFoundError:
+            pass
+        # Termux auf Android
+        if "TERMUX_VERSION" in os.environ or Path("/data/data/com.termux").exists():
+            return "pkg install avrdude"
+        return "Paket 'avrdude' ueber den System-Paket-Manager installieren"
+    return None
 
 
 def find_avrdude_conf(avrdude_path: str | None) -> str | None:
@@ -268,9 +387,19 @@ def _cli() -> int:
     # avrdude
     avrdude = args.avrdude or find_avrdude()
     if not avrdude:
-        print("[programmer] FEHLER: avrdude nicht gefunden. --avrdude angeben oder PATH ergaenzen.",
-              file=sys.stderr)
-        return 6
+        print("[programmer] FEHLER: avrdude nicht gefunden.", file=sys.stderr)
+        # Interaktiv anbieten, jetzt zu installieren
+        if offer_install_avrdude():
+            avrdude = find_avrdude()
+        if not avrdude:
+            suggestion = suggest_avrdude_install()
+            if suggestion:
+                print(f"[programmer]   Vorschlag fuer dieses System:", file=sys.stderr)
+                print(f"[programmer]     {suggestion}", file=sys.stderr)
+            print(f"[programmer]   Alternativ: --avrdude=<pfad> angeben oder die Binary in",
+                  file=sys.stderr)
+            print(f"[programmer]   tools/avrdude/ ablegen (portable Variante).", file=sys.stderr)
+            return 6
 
     avrdude_conf = args.avrdude_conf or find_avrdude_conf(avrdude)
     # avrdude.conf kann auch optional sein (avrdude findet selber eine), wir warnen aber
