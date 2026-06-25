@@ -10,16 +10,15 @@ struct sKey {
 #define APP_SWITCH          2
 #define APP_HIDE            3
 #define TOOGLE_STF_VARIO    4
+#define STICK_RESET         5
 
-// #define KEY_APP_SWITCH {KEY_LEFT_ALT, KEY_TAB}
-// #define KEY_APP_HIDE   {KEY_LEFT_GUI, KEY_RETURN}
 #define KEY_MOUSE_SWITCH {KEY_EXTEND, MOUSE_SWITCH}
 #define KEY_APP_SWITCH   {KEY_EXTEND, APP_SWITCH}
 #define KEY_APP_HIDE     {KEY_EXTEND, APP_HIDE}
 #define KEY_TOGGLE_S_V   {KEY_EXTEND, TOOGLE_STF_VARIO}
+#define KEY_STICK_RESET  {KEY_EXTEND, STICK_RESET}
 
 struct key_struct {
-//    uint8_t Pin;  // cannot be set later, has to be initialized before setup
     sKey Click;
     sKey LongClick;
     sKey DblClick;   
@@ -75,70 +74,17 @@ enum {
 };
 
 // --- Flash-residente Layouts ------------------------------------------------
-const PROGMEM struct key_struct layout_basic[btnSize] = {
-/* Fn  */  { KEY_MOUSE_SWITCH,    KEY_MOUSE_SWITCH, {0,  0}},   
-/* M   */  { {0,KEY_F1},          {0,'M'},{0,  0}},   // QuickMenu and AudioMenue
-/* X   */  { {0,KEY_ESC},         {0,'X'},{0,  0}},   // ESC and 'X' for Shutdown (or Quit)
-/* STF */  { KEY_TOGGLE_S_V,      KEY_TOGGLE_S_V, 0},   
-/* joy */  { {0,KEY_RETURN},      {0, 0}, {0,  0}},   // joystick button
-/* Up */   { {0,KEY_UP_ARROW},    {0, 0}, {0, -4}},
-/* Down */ { {0,KEY_DOWN_ARROW},  {0, 0}, {0, +4}},
-/* Left */ { {0,KEY_LEFT_ARROW},  {0,-4}, {0,  0}},
-/* Right */{ {0,KEY_RIGHT_ARROW}, {0,+4}, {0,  0}},
-
-/* PTT */  { -1 },   // btnPTT - not connected here
-};
-
-const PROGMEM struct key_struct layout_standard[btnSize] = {
-    // ... eigene XCSoar-Variante
-/* Fn  */  { {0,'X'},             {0,'C'},{0,  'S'}},
-/* M   */  { {0,KEY_F1},          {0,'M'},{0,  0}},   // QuickMenu and AudioMenue
-/* X   */  { {0,KEY_ESC},         {0,'X'},{0,  0}},   // ESC and 'X' for Shutdown (or Quit)
-/* STF */  { {0,'V'},             {0,'V'},{0,'6'}},
-/* joy */  { {0,KEY_RETURN},      {0, 0}, {0,  0}},   // joystick button
-/* Up */   { {0,KEY_UP_ARROW},    {0, 0}, {0, -4}},
-/* Down */ { {0,KEY_DOWN_ARROW},  {0, 0}, {0, +4}},
-/* Left */ { {0,KEY_LEFT_ARROW},  {0,-4}, {0,  0}},
-/* Right */{ {0,KEY_RIGHT_ARROW}, {0,+4}, {0,  0}},
-
-/* PTT */  { -1 },   // btnPTT - not connected here
-};
-
-const PROGMEM struct key_struct layout_xcsoar[btnSize] = {
-    // ... eigene XCSoar-Variante
-/* Fn  */  { {0,'X'},             {0,'C'},{0,  'S'}},
-/* M   */  { {0,KEY_F1},          {0,'M'},{0,  0}},   // QuickMenu and AudioMenue
-/* X   */  { {0,KEY_ESC},         {0,'X'},{0,  0}},   // ESC and 'X' for Shutdown (or Quit)
-/* STF */  { {0,'V'},             {0,'V'},{0,'6'}},
-/* joy */  { {0,KEY_RETURN},      {0, 0}, {0,  0}},   // joystick button
-/* Up */   { {0,KEY_UP_ARROW},    {0, 0}, {0, -4}},
-/* Down */ { {0,KEY_DOWN_ARROW},  {0, 0}, {0, +4}},
-/* Left */ { {0,KEY_LEFT_ARROW},  {0,-4}, {0,  0}},
-/* Right */{ {0,KEY_RIGHT_ARROW}, {0,+4}, {0,  0}},
-
-/* PTT */  { -1 },   // btnPTT - not connected here
-};
-
-const PROGMEM struct key_struct layout_openvario[btnSize] = {
-    // ... OpenVario-Variante
-/* Fn  */  { {0,KEY_F2},          {0,KEY_F3}, KEY_APP_SWITCH}, 
-/* M   */  { {0,KEY_F1},          {0,'M'},{0, KEY_F4}},   // QuickMenu and AudioMenue
-/* X   */  { {0,KEY_ESC},         {0,'X'}, KEY_APP_HIDE}, //  ESC and 'X' for Shutdown (or Quit)
-/* STF */  { {0,'V'},             {0,'V'},{0, KEY_F6}},   
-/* joy */  { {0,KEY_RETURN},      {0, 0}, {0,  0}},       // joystick button
-/* Up */   { {0,KEY_UP_ARROW},    {0, 0}, {0, -4}},
-/* Down */ { {0,KEY_DOWN_ARROW},  {0, 0}, {0, +4}},
-/* Left */ { {0,KEY_LEFT_ARROW},  {0,-4}, {0,  0}},
-/* Right */{ {0,KEY_RIGHT_ARROW}, {0,+4}, {0,  0}},
-
-/* PTT */  { -1 },   // btnPTT - not connected here
-};
+#include "layouts/basic-layout.h"
+#include "layouts/advanced-layout.h"
+#include "layouts/android-layout.h"
+#include "layouts/starterkey-layout.h"
 
 // Pointer-Tabelle auf alle Layouts (Pointer SELBST auch im Flash)
 const PROGMEM void* const all_layouts[] = {
     layout_basic,
-    layout_xcsoar,
-    layout_openvario,
+    layout_advanced,
+    layout_android,
+    layout_starterkey,
 };
 const uint8_t NUM_LAYOUTS = sizeof(all_layouts) / sizeof(all_layouts[0]);
 
