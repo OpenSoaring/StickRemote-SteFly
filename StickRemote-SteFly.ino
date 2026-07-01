@@ -66,10 +66,12 @@ const int joy_rebounce_interval = 3;
 const int button_hold_threshold = 900;
 const int enter_hold_threshold  = 2000;
 const int joy_hold_threshold    = 80;
-const int dblclick_threshold    = 300;  // ms - shorter than 400 for snappier feel;
-                                        // mechanical pushbuttons reliably do <300ms double-taps
-const int strongclick_threshold = 200;  // ms - the 1st press time on a double click is very
-                                        // short, after this threshold no double click test needed
+const int dblclick_threshold    = 350;  // ms - wait window after a first tap to detect a second one.
+                                        // A shorter value feels snappier, a longer one is more forgiving
+                                        // for pilots wearing gloves. 350ms is a field-tuned middle ground.
+const int strongclick_threshold = 250;  // ms - if the button was held longer than this before release,
+                                        // it can't have been a rapid double-tap intent -> fire SingleClick
+                                        // immediately without waiting for a possible second click.
 const unsigned long start_delay = 500;  // ms
 const unsigned int start_wait   = 2000;  // 2000;
 
