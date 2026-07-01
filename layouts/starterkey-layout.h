@@ -1,10 +1,12 @@
 const PROGMEM struct key_struct layout_starterkey[btnSize] = {
-    // ... layout for sticks w/o Fn (because starter key)
-/* Fn  */  { -1},                                         // engine starter key hide Fn key
-/* M   */  { {0,KEY_F1},          {0,'M'}, {0,KEY_F5} },  // QuickMenu and AudioMenu
-/* X   */  { {0,KEY_ESC},         {0,'X'}, KEY_APP_HIDE}, //  ESC and 'X' for Shutdown (or Quit)
-/* STF */  { KEY_TOGGLE_S_V,      KEY_MOUSE_SWITCH, KEY_APP_SWITCH},   
-/* Enter*/ { {0,KEY_RETURN},      KEY_STICK_RESET, {0,KEY_F10}},  // joystick button
+    // Layout for sticks w/o Fn button (Fn is the engine starter key).
+    //
+    // w/o DblClick
+/* Fn  */  { -1},                                                  // engine starter key, button hidden
+/* M   */  { {0,KEY_F1},          {0,'M'},          0},            // QuickMenu and AudioMenu
+/* X   */  { {0,KEY_ESC},         {0,'X'},          0}, // ESC and 'X' for Shutdown (or Quit)
+/* STF */  { KEY_TOGGLE_S_V,      KEY_MOUSE_SWITCH, 0},
+/* Enter*/ { {0,KEY_RETURN},      KEY_STICK_RESET,  0},             // joystick button
 /* Up */   { {0,KEY_UP_ARROW},    {0, 0}, {0, -4}},
 /* Down */ { {0,KEY_DOWN_ARROW},  {0, 0}, {0, +4}},
 /* Left */ { {0,KEY_LEFT_ARROW},  {0,-4}, {0,  0}},

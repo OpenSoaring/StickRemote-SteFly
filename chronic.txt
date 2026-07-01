@@ -1,0 +1,30 @@
+// possible version types: VERSION_OLD (= v1.0), VERSION_2 (= v2.0) or VERSION_2_1 (= v2.1)
+#define VERSION_OLD 0  // equivalent to the previous version 'Stick_Remote_Control_br'
+                       // the differce is the use of Arduino IDE 2, and other libraries
+                       // and a complete different code flow, so I expect a better 
+                       // debounce behavior of the keys here
+                       // Version: v1.0
+#define VERSION_2   20000  // previous version with added watchdog only and 
+                       // (WatchDog-)Reset at long pressed Enter button (joy
+                       // stick button) and with diagonal movement of the mouse
+                       // and the activation of the serial interface
+                       // Version: v2.0
+#define VERSION_2_1 20100  // extended version with WatchDog and additional key 'Q' (= quit)
+                       // on long pressed X button (> 1sec,  < 4sec), 'X' (= shutdown) on very
+                       // long pressed X button (> 4sec), 'E' (= btn_design) on long pressed.
+                       // (> 1sec) Fn button
+                       // Mouse moves at an increased speed after ~0.8 sec
+                       // Version: v2.1
+#define VERSION_3   30000  // extended version with shift key, double click, serial communication
+                       // + USB-Recovery (Stufe A+B) 
+                       // watchdog send 0
+                       //  - Frueher WDT-disable in .init3 (Caterina-Falle umgehen)
+                       //  - WDT-Kick ohne Keyboard.write(0) (kein USB-Traffic noetig)
+                       //  - MCUSR-Auswertung + Reset-Log im EEPROM + NMEA-Bootmsg
+                       //  - Soft Re-Enumeration via USBDevice.detach/attach
+                       //    bei USB-Suspend oder Send-Timeout (kein WDT-Reset noetig)
+                       //  - exit(1) ersetzt durch sauberen wdt-Reset
+#define VERSION_3_1 30100  // key layout like 2.1 (VERSION_2_1)
+                       // Version: v3.1
+#define VERSION_3_2 30200  // new key layout
+                       // Version: v3.2

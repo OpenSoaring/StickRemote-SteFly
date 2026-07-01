@@ -1,10 +1,12 @@
 const PROGMEM struct key_struct layout_android[btnSize] = {
-    // ... layout for android w/ app switch and w/o mouse 
-/* Fn  */  { {0,KEY_F2},          {0,KEY_F3}, KEY_APP_SWITCH},   
-/* M   */  { {0,KEY_F1},          {0,'M'},{0,KEY_F5}},   // QuickMenu and AudioMenu
-/* X   */  { {0,KEY_ESC},         {0,'X'},KEY_APP_HIDE}, // ESC and 'X' for Shutdown (or Quit)
-/* STF */  { KEY_TOGGLE_S_V,      {0,KEY_F7}, {0,KEY_F8}},   
-/* Enter*/ { {0,KEY_RETURN},      KEY_STICK_RESET, {0,KEY_F10}},  // joystick button
+    // Layout for Android w/ app switch and w/o mouse.
+    //
+    // w/o DblClick: 
+/* Fn  */  { {0,KEY_F2},          {0,KEY_F3},      0},
+/* M   */  { {0,KEY_F1},          {0,'M'},         0},                // QuickMenu and AudioMenu
+/* X   */  { {0,KEY_ESC},         {0,'X'},         0},     // ESC and 'X' for Shutdown (or Quit)
+/* STF */  { KEY_TOGGLE_S_V,      {0,KEY_F7},      0},
+/* Enter*/ { {0,KEY_RETURN},      KEY_STICK_RESET, 0},                // joystick button
 /* Up */   { {0,KEY_UP_ARROW},    {0, 0}, {0, -4}},
 /* Down */ { {0,KEY_DOWN_ARROW},  {0, 0}, {0, +4}},
 /* Left */ { {0,KEY_LEFT_ARROW},  {0,-4}, {0,  0}},

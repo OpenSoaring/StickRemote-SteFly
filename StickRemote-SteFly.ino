@@ -13,60 +13,25 @@ the code is started wit the OpenVario script 'Stick_Remote_Control_20170429.ino'
 available at http://ftp.openvario.org/Stick_Remote_Control_20170429.ino (see:
 https://www.openvario.org/doku.php?id=projects:remote_00:top)
 
-// examle seral communications:
-// * $POPSL,N - select flash preset N as active layout (0 - 2)
-// * $POPSK,1,2,0,67 - update btnMenu, DblClick, 0, 'C'
-// * $POPSH - request layout health dump
-// * $POPSQ,    readPOPSQ(read_buffer + 7);
-//    * "Version"  sendVersion();  
-//    * "Device"   sendDevice();  
-//    * "FileDate" sendFileDate();  
-//    * "FileName" sendFileName();  
-//    * "Time"     sendTime();  
-//    * "Reboot"   resetCmd();  
-
 the sketch uses libraries from
 * https://github.com/thomasfredericks/Bounce2  - part of PushButton
 * https://github.com/r89m/Button               - part of PushButton
 * https://github.com/r89m/PushButton 
 -----------------------------------------------------------------------------*/
-// possible version types: VERSION_OLD (= v1.0), VERSION_2 (= v2.0) or VERSION_2_1 (= v2.1)
-#define VERSION_OLD 0  // equivalent to the previous version 'Stick_Remote_Control_br'
-                       // the differce is the use of Arduino IDE 2, and other libraries
-                       // and a complete different code flow, so I expect a better 
-                       // debounce behavior of the keys here
-                       // Version: v1.0
-#define VERSION_2   20000  // previous version with added watchdog only and 
-                       // (WatchDog-)Reset at long pressed Enter button (joy
-                       // stick button) and with diagonal movement of the mouse
-                       // and the activation of the serial interface
-                       // Version: v2.0
-#define VERSION_2_1 20100  // extended version with WatchDog and additional key 'Q' (= quit)
-                       // on long pressed X button (> 1sec,  < 4sec), 'X' (= shutdown) on very
-                       // long pressed X button (> 4sec), 'E' (= btn_design) on long pressed.
-                       // (> 1sec) Fn button
-                       // Mouse moves at an increased speed after ~0.8 sec
-                       // Version: v2.1
-#define VERSION_3   30000  // extended version with shift key, double click, serial communication
-                       // + USB-Recovery (level A+B) 
-                       // watchdog send 0
-                       //  - early WDT-disable in .init3 (Caterina-Falle umgehen)
-                       //  - WDT click w/o Keyboard.write(0) (no USB-Traffic necessary)
-                       //  - MCUSR analysis + Reset-Log in EEPROM + NMEA-Bootmsg
-                       //  - Soft Re-Enumeration via USBDevice.detach/attach
-                       //    at USB-Suspend or Send-Timeout (no WDT-Reset necessary)
-                       //  - exit(1) replaced w/ clean wdt-Reset
-#define VERSION_3_1 30100  // Version: v3.1
-#define VERSION_3_2 30200  // Version: v3.2
-// -----------------------------------------------------------
-#define VERSION_TYPE    VERSION_3
-// -----------------------------------------------------------
+// Single version line - history of earlier versions (VERSION_OLD, VERSION_2,
+// VERSION_2_1, VERSION_3, ...) and the feature additions per version are
+// preserved in chronic.txt. The key-mapping split that used to motivate the
+// VERSION_TYPE macro is now handled at runtime via the EEPROM-backed layout
+// system, so no compile-time switching is needed anymore.
+
 #include <Mouse.h>
 #include <Keyboard.h>
 #include <PushButton.h>
 #include <EEPROM.h>
 #include "RemoteStick.h"
-#include "RemoteEEprom.h"   // dual-slot EEPROM persistence (uses btn_design + all_layouts)
+#include "RemoteEEprom.h"        // dual-slot EEPROM persistence (uses btn_design + all_layouts)
+#include "RemoteCommunication.h"
+#include "avr/wdt.h"             // wdt_enable, wdt_disable, wdt_reset, WDTO_*
 
 // Placement-new operator. Needed because the r89m/PushButton library does
 // not expose Bounce::attach(), so we rebind buttons to their pins by
@@ -74,49 +39,22 @@ the sketch uses libraries from
 // EEPROM-stored pin assignment is loaded in setup()).
 inline void* operator new(size_t, void* ptr) noexcept { return ptr; }
 
-#if VERSION_TYPE >= VERSION_2
-# include "avr/wdt.h"
-# define WITH_WATCHDOG
-# define WITH_SERIAL
-# define RESTART_VERSION
-#endif
-
-#if VERSION_TYPE >= VERSION_3
-# define WITHOUT_MOUSE
-# define EXTEND_SERIAL
-# define WAIT_FOR_ENTER
-# define WITH_DBLCLICK
-#endif
-
-#if VERSION_TYPE >= VERSION_3   // (Claude changes)
-// USB-Recovery-Paket. Wirkt zusammen mit (modifiziertem) Caterina-Bootloader,
-// laeuft aber auch mit Original-Caterina - dann nur eben mit 8s Wartezeit nach
-// einem WDT-Reset (was wir mit WITH_USB_REATTACH ja gerade vermeiden wollen).
-# define WITH_EARLY_WDT_DISABLE   // .init3 Hook: MCUSR=0; wdt_disable() vor setup()
-# define WITH_RESET_LOG           // MCUSR + Zaehler ins EEPROM, NMEA-Bootmsg
-# define WITH_USB_REATTACH        // sanftes Re-Enumerieren bei Suspend/Send-Stall
-# define WITH_CLEAN_RESET         // exit(1) -> wdt_enable(WDTO_15MS); while(1){}
-#endif
+// All feature flags are always active in v3.0:
+#define RESTART_VERSION          // staggered boot path with serial 'Start' frame
+#define WITHOUT_MOUSE            // no Mouse.* methods even if Mouse.h is included
+#define WAIT_FOR_ENTER           // setup() waits for Enter to be released before continuing
+#define WITH_DBLCLICK            // per-button DblClick handling
+// USB recovery package - works with modified Caterina bootloader or stock one
+// (the stock Caterina just adds an 8s wait on WDT reset, which WITH_USB_REATTACH
+// avoids by re-enumerating via USBDevice.detach()/attach() instead).
+#define WITH_EARLY_WDT_DISABLE   // .init3 hook: MCUSR=0; wdt_disable() before setup()
+#define WITH_RESET_LOG           // MCUSR + reset counter logged to EEPROM, NMEA boot msg
+#define WITH_USB_REATTACH        // soft re-enumerate on USB suspend / send stall
+#define WITH_CLEAN_RESET         // exit(1) -> wdt_enable(WDTO_15MS); while(1){}
 
 const char* Device  = "Stick Remote Control (SteFly)";
-const char* Date    = __DATE__;  // = Compile Date: "2025-01-24";
-#if VERSION_TYPE  == VERSION_OLD
-  const char* Version = "v1.0.1";
-#elif VERSION_TYPE  == VERSION_2
-  const char* Version = "v2.0.1";
-#elif VERSION_TYPE  == VERSION_2_1
-  const char* Version = "v2.1.1";
-#elif VERSION_TYPE  == VERSION_3
-  const char *Version = "v3.0";
-#elif VERSION_TYPE  == VERSION_3_1
-  const char *Version = "v3.1";
-#elif VERSION_TYPE  == VERSION_3_2
-  const char *Version = "v3.2";
-#else
-  const char* Version = "unknown";
-#endif
-
-// const char *VersionStr = "Version,";
+const char* Date    = __DATE__;
+const char* Version = "v3.0";
 
 // check Linux delimiter and/or Window delimiter: 
 const char* FileName  = (strrchr(__FILE__, '/') ?                     \
@@ -128,7 +66,10 @@ const int joy_rebounce_interval = 3;
 const int button_hold_threshold = 900;
 const int enter_hold_threshold  = 2000;
 const int joy_hold_threshold    = 80;
-const int dblclick_threshold    = 400;  // previous: 500;  // ms
+const int dblclick_threshold    = 300;  // ms - shorter than 400 for snappier feel;
+                                        // mechanical pushbuttons reliably do <300ms double-taps
+const int strongclick_threshold = 200;  // ms - the 1st press time on a double click is very
+                                        // short, after this threshold no double click test needed
 const unsigned long start_delay = 500;  // ms
 const unsigned int start_wait   = 2000;  // 2000;
 
@@ -165,6 +106,7 @@ int x_repeat = 0;
 
 #ifdef WITH_DBLCLICK
 unsigned long BtnClickTime[btnSize] = {0,0,0,0,0,0,0,0,0,0};
+unsigned long BtnPressTime[btnSize] = {0,0,0,0,0,0,0,0,0,0};
 unsigned long DblClickTime[btnSize] = {0,0,0,0,0,0,0,0,0,0};
 #endif  
 
@@ -172,24 +114,15 @@ bool startBit = false;
 unsigned long startTime = 0;
 unsigned long time_now = 0;
 
-#ifdef  WITH_WATCHDOG
 unsigned long timeWDT = 0;
-#endif
 
 // const int x = MouseDistance;
 // const int y = MouseDistance;
 
-#if defined(WITH_SERIAL) 
-  const int buffer_size = 0x40;
-  char send_buffer[buffer_size];
-  char nmea_buffer[buffer_size];
-  char send_info[buffer_size];
-# if defined(EXTEND_SERIAL)
-    const unsigned int read_buffer_length = 0x100;
-    int read_buffer_pointer = 0;
-    char read_buffer[read_buffer_length];
-# endif  // EXTEND_SERIAL
-#endif  // WITH_SERIAL
+// Serial number lives here because setup() initializes it from EEPROM
+// on first boot. The send buffers and read_buffer are defined inside
+// RemoteCommunication.h (included at the top of this file).
+char serialNum[20];
 /* -----------------------------------------------------------------
  define press (short press) and hold (long press) functions for each button
  settings in XCSoar default.xci are
@@ -245,7 +178,6 @@ void wdtEarlyDisable(void) {
 }
 #endif  // WITH_EARLY_WDT_DISABLE
 
-#ifdef  WITH_WATCHDOG
 // ----------------------------------------------------------------------------
 void watchdogInit() {
         timeWDT = time_now = millis();
@@ -261,7 +193,6 @@ void wdtReset() {
         wdt_reset();
     }
 }
-#endif  // WITH_WATCHDOG
 
 #ifdef WITH_USB_REATTACH
 // ----------------------------------------------------------------------------
@@ -325,104 +256,32 @@ void softReattach(const char *reason) {
     lastReattachMillis = now;
     if (reattachCount < 255) reattachCount++;
 
-# ifdef WITH_SERIAL
     char buf[48];
     snprintf(buf, sizeof(buf), "Reattach,%s,n=%u", reason, (unsigned)reattachCount);
     sendNMEA('I', buf);
     Serial.flush();
-# endif
 
     USBDevice.detach();
     // Wartezeit ohne den Mainloop zu verlieren: WDT mitkicken.
     for (uint8_t i = 0; i < 25; i++) {  // ~250 ms detach
-#  ifdef WITH_WATCHDOG
         wdt_reset();
-#  endif
         delay(10);
     }
     USBDevice.attach();
     // Bis zu ~300 ms warten, bis Host wieder enumeriert hat.
     for (uint8_t i = 0; i < 30; i++) {
-#  ifdef WITH_WATCHDOG
         wdt_reset();
-#  endif
         delay(10);
         if (USBDevice.configured()) break;
     }
 }
 #endif  // WITH_USB_REATTACH
 
-// ============================================= 
-// ============================================= 
-// ============================================= 
-#if defined(WITH_SERIAL) 
-// ----------------------------------------------------------------------------
-uint8_t
-NMEAChecksum(const char *src, int len) noexcept
-{
-  uint8_t checksum = 0;
-  char *p = src;
-
-  /* skip the dollar sign at the beginning (the exclamation mark is
-     used by CAI302 */
-  if (p && *p && (*p == '$' || *p == '!'))
-    { p++; len--;}  // remove_prefix(1);
-
-  // for (char ch : src)
-  while (*p)  //  && (len-- > 0))
-    checksum ^= static_cast<uint8_t>(*p++);
-
-  return checksum;
-}
+// NMEA helpers (NMEAChecksum, VerifyNMEAChecksum, AppendNMEAChecksum,
+// sendNMEA) live in RemoteCommunication.h - included at the top of this file.
 
 // ----------------------------------------------------------------------------
-bool
-VerifyNMEAChecksum(const char *p)
-{
-  //assert(p != nullptr);
-  if (!*p)
-    return false;
-
-  const char *asterisk = strrchr(p, '*');
-  if (asterisk == nullptr)
-    return false;
-
-  const char *checksum_string = asterisk + 1;
-  char *endptr;
-  unsigned long ReadCheckSum2 = strtoul(checksum_string, &endptr, 16);
-  if (endptr == checksum_string || *endptr != 0 || ReadCheckSum2 >= 0x100)
-    return false;
-
-  uint8_t ReadCheckSum = (unsigned char)ReadCheckSum2;
-  uint8_t CalcCheckSum = NMEAChecksum(p, asterisk - p);
-
-  return CalcCheckSum == ReadCheckSum;
-}
-
-// ----------------------------------------------------------------------------
-void
-AppendNMEAChecksum(char *p)
-{
-  //assert(p != nullptr);
-  if (!*p)
-    return;
-
-  const size_t length = strlen(p);
-  sprintf(p + length, "*%02X", NMEAChecksum(p, length));
-}
-
-// ----------------------------------------------------------------------------
-void sendNMEA(const char set, const char* line) {
-   // PSRC(%set%),R: (S)tick(R)emote(C)ontrol(%set%)field, (R)emote
-    
-    snprintf_P(nmea_buffer,buffer_size,PSTR("$PSRC%c,R,%s"), set, line);
-    AppendNMEAChecksum(nmea_buffer);
-    Serial.println(nmea_buffer);
-}
-#endif // defined(WITH_SERIAL) 
-
-// ----------------------------------------------------------------------------
-void sendKey(const sKey key, const unsigned int info=0) {
+void sendKey(const sKey key) {
 
 #ifdef WITH_USB_REATTACH
     // Falls Host die Schnittstelle suspendiert hat: erst Remote-Wakeup
@@ -432,9 +291,7 @@ void sendKey(const sKey key, const unsigned int info=0) {
     if (USBDevice.isSuspended()) {
         bool woken = USBDevice.wakeupHost();
         for (uint8_t i = 0; i < 20 && USBDevice.isSuspended(); i++) {
-# ifdef WITH_WATCHDOG
             wdt_reset();
-# endif
             delay(5);
         }
         if (USBDevice.isSuspended() && usbAbnormalStable()) {
@@ -449,6 +306,7 @@ void sendKey(const sKey key, const unsigned int info=0) {
         switch (key.key) {
           case MOUSE_SWITCH:    switchMouse(); break;
           case APP_SWITCH:      switchApp(); break;
+          case APP_SWITCH2:     switchApp_doubleTAB(); break;
           case APP_HIDE:        hideApp(); break;
           case TOOGLE_STF_VARIO:toggleSpeedToFly_Vario(); break;
           default: break;
@@ -457,24 +315,16 @@ void sendKey(const sKey key, const unsigned int info=0) {
       // sprintf(send_buffer+strlen(send_buffer), "%02X.%02X", key.ext, key.key);
     } else {
       Keyboard.write(key.key);
-#if defined(WITH_SERIAL)
-     char *keycode = key_code(key);
-     if (keycode)
-       strcpy(send_buffer, keycode);       
-     else
-       send_buffer[0] = 0;
-#endif // defined(WITH_SERIAL) 
-    }
-#if defined(WITH_SERIAL)
-    if (info > 0) {
-       sprintf(send_buffer+strlen(send_buffer)," (%dms)++++", info);
+      char *keycode = key_code(key);
+      if (keycode) strcpy(send_buffer, keycode);
+      else         send_buffer[0] = 0;
     }
     if (*send_buffer) {
       sendNMEA('K', send_buffer);
       send_buffer[0] = 0;
     }
-#endif // defined(WITH_SERIAL2) 
 }
+
 // ----------------------------------------------------------------------------
 // Extended Key Functions:
 // ----------------------------------------------------------------------------
@@ -491,33 +341,82 @@ void toggleSpeedToFly_Vario() {
 }
 
 // ----------------------------------------------------------------------------
+// Switch to the previous app (Alt+Tab style).
+//
+// Cross-platform timing notes:
+//   * Windows / Linux: switch happens immediately on ALT+TAB press,
+//     ALT-release just confirms. Total time doesn't matter much.
+//   * Android 13: switcher is shown while ALT is held, app is committed
+//     on ALT-release. Total of ~300ms feels responsive.
+//   * Android 11: requires ALT to be held BEFORE TAB is pressed for the
+//     gesture to register as "app switch" (not "alt typed, then tab typed").
+//     Pre-ALT hold of >=50ms greatly improves reliability there.
+//
+// IMPORTANT: this implementation sends a SINGLE TAB while ALT is held.
+// On desktop OSes that moves one step in the MRU stack (= previous app).
+// A double-TAB inside the same ALT-hold would move TWO steps on Windows/Linux
+// (= switch to a different app than intended). Only on certain Android versions
+// might rapid double-TAB stabilize the switch - not portable.
+// If you want to experiment with double-TAB on Android-only devices, swap to
+// switchApp_doubleTAB() defined below and observe behavior.
 void switchApp() {
        Keyboard.press(KEY_LEFT_ALT);
-       delay(5);
+       delay(60);                       // pre-hold: let Android 11 register the modifier
        Keyboard.press(KEY_TAB);
-       delay(20);
+       delay(50);                       // TAB press: long enough to register on all platforms
        Keyboard.release(KEY_TAB);
-       for (int i=0;i<6;i++) {
-#ifdef  WITH_WATCHDOG
-         wdtReset();
-#endif
-         delay(100);
+       // Post-hold: keep ALT down so the switcher stays open while the
+       // OS commits to the target app. WDT-kick during the wait.
+       for (uint8_t i = 0; i < 50; i++) {
+       // for (uint8_t i = 0; i < 28; i++) {
+         wdt_reset();
+         delay(10);
        }
        Keyboard.release(KEY_LEFT_ALT);
 }
 
 // ----------------------------------------------------------------------------
+// EXPERIMENTAL variant: double-TAB inside the same ALT-hold.
+// On Windows/Linux this switches to the THIRD most recent app (skips one).
+// On some Android versions this gives a more reliable switch to the previous
+// app than single-TAB. Untested across the full Android version matrix.
+// Currently NOT wired up - to try it, call this instead of switchApp() in
+// the APP_SWITCH dispatch (see line ~364).
+void switchApp_doubleTAB() {
+       Keyboard.press(KEY_LEFT_ALT);
+       delay(60);
+       Keyboard.press(KEY_TAB);
+       delay(50);
+       Keyboard.release(KEY_TAB);
+       delay(100);                       // inter-TAB gap
+       Keyboard.press(KEY_TAB);
+       delay(50);
+       Keyboard.release(KEY_TAB);
+       for (uint8_t i = 0; i < 25; i++) {
+         wdt_reset();
+         delay(10);
+       }
+       Keyboard.release(KEY_LEFT_ALT);
+}
+
+// ----------------------------------------------------------------------------
+// Hide / minimize the current app (WIN+ENTER style).
+//
+// Same timing strategy as switchApp(): pre-hold of the GUI modifier for
+// 60ms so Android 11 reliably registers the modifier before ENTER comes,
+// 50ms ENTER press for guaranteed key-down delivery, then 200ms post-hold
+// to let the OS commit the action before the GUI key is released.
+// Total ~310ms - faster than the previous ~225ms (which itself was already
+// short, but the missing pre-hold caused intermittent failures on Android 11).
 void hideApp() {
        Keyboard.press(KEY_LEFT_GUI);
-       delay(5);
+       delay(60);                       // pre-hold: let Android 11 register the modifier
        Keyboard.press(KEY_RETURN);
-       delay(20);
+       delay(50);                       // ENTER press: long enough on all platforms
        Keyboard.release(KEY_RETURN);
-       for (int i=0;i<2;i++) {
-#ifdef  WITH_WATCHDOG
-         wdtReset();
-#endif
-         delay(100);
+       for (uint8_t i = 0; i < 20; i++) {
+         wdt_reset();
+         delay(10);
        }
        Keyboard.release(KEY_LEFT_GUI);
 }
@@ -529,9 +428,7 @@ void hideApp() {
 
 // ----------------------------------------------------------------------------
 void setup() {
-#ifdef WITH_SERIAL
   Serial.begin(9600);
-#endif  // WITH_SERIAL
 
   // Load pin assignment (hardware mapping) from EEPROM. On first boot or
   // corruption, falls back to factory default and persists it. Must happen
@@ -560,13 +457,11 @@ void setup() {
 // =============================================
 // =============================================
   // wait until button 'Enter' is released
-   pinMode(active_pin_config[btnEnter], INPUT_PULLUP);
-#ifdef  WITH_WATCHDOG
+  pinMode(active_pin_config[btnEnter], INPUT_PULLUP);
   while (!digitalRead(active_pin_config[btnEnter])) { // = isPressed
     wdtReset();
     delay(200);
   }
-#endif
   button[btnEnter].update();
   
 /*  */
@@ -604,78 +499,46 @@ void setup() {
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-// SendCommands:
-/*
-      case 'v': snprintf_P(send_info, buffer_size, PSTR("Version,%s"), Version); break;
-      case 'd': snprintf_P(send_info, buffer_size, PSTR("Device,%s"), Device);break;
-      case 'u': snprintf_P(send_info, buffer_size, PSTR("FileDate,%s"), Date);break;
-      case 'f': snprintf_P(send_info, buffer_size, PSTR("FileName,%s"), FileName);break;  
-      case 't': snprintf_P(send_info, buffer_size, PSTR("systime,%u"), time_now);break;
-*/
-void sendVersion() {
-    snprintf_P(send_info, buffer_size, PSTR("Version,%s"), Version);
-    sendNMEA('I',send_info);
-}
-// ----------------------------------------------------------------------------
-void sendDevice() {
-    snprintf_P(send_info, buffer_size, PSTR("Device,%s"), Device);
-    sendNMEA('I',send_info);
-}
-// ----------------------------------------------------------------------------
-void sendFileDate() {
-    snprintf_P(send_info, buffer_size, PSTR("FileDate,%s"), Date);
-    sendNMEA('I',send_info);
-}
-// ----------------------------------------------------------------------------
-void sendFileName() {
-    snprintf_P(send_info, buffer_size, PSTR("FileName,%s"), FileName);
-    sendNMEA('I',send_info);
-}
-// ----------------------------------------------------------------------------
-void sendTime() {
-    snprintf_P(send_info, buffer_size, PSTR("systime,%u"), time_now);
-    sendNMEA('I',send_info);
-}
+// All send/dispatch functions (sendVersion, sendDevice, sendFileDate,
+// sendFileName, sendTime, sendLayout, sendSerialNumber, sendSettingsBlock,
+// sendInfoBlock, queryInfo, execCommand) live in RemoteCommunication.h -
+// included at the top of this file. Only resetCmd() stays here since it is
+// sketch-level behaviour (clean WDT-driven reboot).
 // ----------------------------------------------------------------------------
 void resetCmd() {
-#ifdef WITH_SERIAL
     sendNMEA('I', "Reset(Serial)");
     Serial.flush();
-# endif
-
-    wdt_enable(WDTO_15MS); // much faster...
+    wdt_enable(WDTO_15MS);    // clean reset via watchdog
     while (1) { }
 }
+
 // ----------------------------------------------------------------------------
-void readPOPSQ(const char* cmd) {
-       if (!strcmp_P(cmd, PSTR("Version")))  sendVersion();  
-  else if (!strcmp_P(cmd, PSTR("Device")))   sendDevice();  
-  else if (!strcmp_P(cmd, PSTR("FileDate"))) sendFileDate();  
-  else if (!strcmp_P(cmd, PSTR("FileName"))) sendFileName();  
-  else if (!strcmp_P(cmd, PSTR("Time")))     sendTime();  
-  else if (!strcmp_P(cmd, PSTR("Reboot")))   resetCmd();  
+void SingleClick(int index) {
+  if (btn_design[index].Click.key) { // [KEY_PRESSED]) {
+    if (mouse_active && index == btnEnter) {
+      Mouse.release(MOUSE_LEFT);
+      // Mouse.press(MOUSE_LEFT);
+    } else
+      sendKey(btn_design[index].Click);
+  }
 }
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 void loop() {
   time_now = millis();
 
 #if defined(WITH_DBLCLICK)
   for (int index = 0; index <= btnEnter; index++) {
+////////////////////////////////////////////////
+    if  (!digitalRead(active_pin_config[index])  // = isPressed
+    // if (button[index].isPressed()
+        && (BtnPressTime[index] == 0))
+        BtnPressTime[index] = time_now;
+////////////////////////////////////////////////
     int click_time = time_now - BtnClickTime[index];
     if (BtnClickTime[index] && (click_time > dblclick_threshold)) { //-> SingleClick!
        // Serial.println(time_now - BtnClickTime[index]);  /* TEST */
        BtnClickTime[index] = 0;
-       if (btn_design[index].Click.key) { // [KEY_PRESSED]) {
-         if (mouse_active && index == btnEnter) {
-           Mouse.release(MOUSE_LEFT);
-           // Mouse.press(MOUSE_LEFT);
-         } else
-           sendKey(btn_design[index].Click);
-       }
+       SingleClick(index);
     }
   }
 #endif // defined(WITH_DBLCLICK)
@@ -688,9 +551,7 @@ void loop() {
   if (!startBit) {
       if (time_now-startTime > start_wait) {
          startBit = true;
-# ifdef WITH_SERIAL
          sendNMEA('I',"Start");
-         char serialNum[20];
          serialNum[0] = EEPROM.read(0);
          if (serialNum[0] == 'S') {
              // maybe a valid serial SteFly number
@@ -702,7 +563,7 @@ void loop() {
          }
          sendNMEA('I',serialNum);
 
-#  ifdef WITH_RESET_LOG
+# ifdef WITH_RESET_LOG
          // Reset-Statistik im EEPROM (Offset 64, outside serial number).
          // Layout: [64]='R' magic, [65..66]=uint16 resetCount, [67]=last MCUSR.
          {
@@ -733,12 +594,9 @@ void loop() {
                     cause, lastMcusr, (unsigned)resetCount);
            sendNMEA('I', buf);
          }
-#  endif  // WITH_RESET_LOG
-# endif  // WITH_SERIAL
-# ifdef  WITH_WATCHDOG
+# endif  // WITH_RESET_LOG
         // Enabling after start_wait time
         watchdogInit();
-# endif // RESTART_VERSION
       }
   } else {
     for (int i=0;i<btnSize;i++)
@@ -746,153 +604,87 @@ void loop() {
   }
 #endif
 
-#ifdef  WITH_WATCHDOG
   wdtReset();
-#endif
 
 #ifdef WITH_USB_REATTACH
   // USB-Zustand beobachten: Stabilitaets-Debouncer und preemptive Recovery
   monitorUsbState();
 #endif
 
-#ifdef WITH_SERIAL
+  // Stream-based NMEA reader + dispatcher lives in RemoteCommunication.h.
+  // processSerialChar() accumulates chars into read_buffer and dispatches a
+  // complete '$PSRC...' frame on newline via dispatchSerialCommand().
+  //
+  // The legacy single-char shortcuts (v, d, u, f, t, 0..2) have been retired -
+  // same functionality is reachable via:
+  //   v    -> $PSRCI,R,Version
+  //   d    -> $PSRCI,R,Device
+  //   u    -> $PSRCI,R,FileDate
+  //   f    -> $PSRCI,R,FileName
+  //   t    -> $PSRCI,R,Time
+  //   0..2 -> $PSRCS,S,Layout,0..2
   int c = Serial.read();
-  if (isprint(c) || (c=='\n')) {
-#if defined(EXTEND_SERIAL)
-  // KEEP IT SIMPLE! Without interrupt handler for serial input you don't need 
-  // a ring buffer
-  switch (c) {  // one char allowed only
-    case '\r': return; // break;
-    case '\n': {
-        if ((read_buffer_pointer > 0) && read_buffer[0] == '$') {
-          int l = read_buffer_pointer;
-          //size_t l = strlen(read_buffer);
-          read_buffer[l] = 0;
-          if (read_buffer[l - 3] == '*') read_buffer[l - 3] = 0;
-          if (!strncmp(read_buffer + 1, "POPSQ,", 6)) {
-              readPOPSQ(read_buffer + 7);
-             // sendNMEA('S', read_buffer + 7);
-          }
-          // $POPSL,N - select flash preset N as active layout
-          else if (!strncmp(read_buffer + 1, "POPSL,", 6)) {
-              uint8_t idx = atoi(read_buffer + 7);
-              loadPresetFromFlash(idx);
-              snprintf_P(send_info, buffer_size, PSTR("Preset loaded,%u"), idx);
-              sendNMEA('I', send_info);
-          }
-          // $POPSK,btn,slot,ext,key - update single key entry (slot: 0=Click,1=LongClick,2=DblClick)
-          // example: $POPSK,1,2,0,67 - update btMenu, DblClick, 0, 'C'
-          else if (!strncmp(read_buffer + 1, "POPSK,", 6)) {
-              uint8_t btn, slot, ext, key;
-              if (sscanf(read_buffer + 7, "%hhu,%hhu,%hhu,%hhu",
-                         &btn, &slot, &ext, &key) == 4) {
-                  if (updateKeySlot(btn, slot, ext, key))
-                      sendNMEA('I', "Key updated");
-                  else
-                      sendNMEA('I', "Invalid btn/slot index");
-              } else {
-                  sendNMEA('I', "POPSK parse error");
-              }
-          }
-          // $POPSH - request layout health dump
-          else if (!strncmp(read_buffer + 1, "POPSH", 5)) {
-              sendLayoutHealth();
-          }
-          // $POPSPS,btn,pin - SERVICE command: assign a new pin to a button.
-          // Triggers a clean reset so the new pin assignment takes effect.
-          // Use sparingly - this is for hardware reconfiguration, not user use.
-          else if (!strncmp(read_buffer + 1, "POPSPS,", 7)) {
-              uint8_t btn, pin;
-              if (sscanf(read_buffer + 8, "%hhu,%hhu", &btn, &pin) == 2
-                  && btn < btnSize) {
-                  uint8_t pins[btnSize];
-                  if (!loadPinConfigFromEEPROM(pins)) {
-                      memcpy_P(pins, default_pin_config, btnSize);
-                  }
-                  pins[btn] = pin;
-                  savePinConfigToEEPROM(pins);
-                  sendNMEA('I', "PinConfig updated, restarting");
-                  Serial.flush();
-                  wdt_enable(WDTO_15MS);
-                  while (1) { }   // clean reset, new config takes effect on reboot
-              } else {
-                  sendNMEA('I', "POPSPS parse error or btn out of range");
-              }
-          }
-          else
-             Serial.println(read_buffer); /*TEST */
-        } 
-      }
-      read_buffer_pointer = 0;
-      return; // break;
-    case '$': // starts the reading
-          read_buffer[0] = (char) c;
-          read_buffer_pointer = 1;
-       break;
-    default:
-          if (read_buffer_pointer > 0)
-              read_buffer[read_buffer_pointer++] = (char) c;
-       break;
+  if (isprint(c) || c == '\n') {
+    processSerialChar(c);
   }
-
-  if (read_buffer_pointer != 0)
-    return; 
-#endif  // defined(EXTEND_SERIAL)
-    switch (c | 0x20) {  // one char allowed only
-      // case 'v': snprintf_P(send_info, buffer_size, PSTR("Version,%s"), Version); break;
-      case 'v': sendVersion();return;
-      case 'd': snprintf_P(send_info, buffer_size, PSTR("Device,%s"), Device);break;
-      case 'u': snprintf_P(send_info, buffer_size, PSTR("FileDate,%s"), Date);break;
-      case 'f': snprintf_P(send_info, buffer_size, PSTR("FileName,%s"), FileName);break;  
-      case 't': snprintf_P(send_info, buffer_size, PSTR("systime,%u"), time_now);break;
-      case '0':
-      case '1':
-      case '2':
-      {
-        char l = c-'0';
-         loadPresetFromFlash(l);   // load + persist (was: loadLayout)
-         snprintf_P(send_info, buffer_size, PSTR("keyLayout %d (%d): "), l,
-                    sizeof(btn_design));
-        strcat(send_info, key_code(btn_design[0].Click));
-        strcat(send_info, "-");
-        strcat(send_info, key_code(btn_design[0].LongClick));
-        strcat(send_info, "-");
-        strcat(send_info, key_code(btn_design[0].DblClick));
-         // sendNMEA('X',send_info);
-         // sprintf(send_info, "keyLayout, %c", c);
-      }
-      break;
-
-      default:  
-               // if (isprint(c)) snprintf_P(send_info, buffer_size, PSTR("Key,%c"), c);
-               break; 
-    } 
-    if (*send_info) {
-      sendNMEA('S',send_info);
-    }
-  }
-#endif  // WITH_SERIAL
 }
 
 // ----------------------------------------------------------------------------
 #ifdef WITH_DBLCLICK
+// Called on every button release. Decides:
+//   a) If this is the second click within dblclick_threshold and the button
+//      has a DblClick action configured -> fire DblClick now, suppress the
+//      pending Click that was deferred from the first release.
+//   b) If the button has NO DblClick action -> fire Click IMMEDIATELY,
+//      no latency penalty. Most buttons fall into this category.
+//   c) Otherwise: first click on a DblClick-capable button -> defer the
+//      Click until the timeout in loop() decides "no second click coming".
 bool DblClickTest(int index) {
-  if (BtnClickTime[index] > 0) { //-> DoubleClick!
+////////////////////////////////////////////////
+  if (BtnPressTime[index] != 0) {
+    int press_time = time_now - BtnPressTime[index];
+    BtnPressTime[index] = 0;  // reset time
+    if (press_time > strongclick_threshold) {  // threshold for strong click
+           SingleClick(index);
+         /*
+         char buf[48];
+         snprintf_P(buf, sizeof(buf), PSTR("StrongClick: t=%u"), press_time);
+         sendNMEA('I', buf);
+         */
+           BtnClickTime[index] = 0;
+           return true;
+    }
+  }
+////////////////////////////////////////////////
+  if (BtnClickTime[index] > 0) {
+     // --- (a) Second click within window -> DblClick ---
      int click_time = time_now - BtnClickTime[index];
      DblClickTime[index] = time_now;
-     BtnClickTime[index] = 0;
+     BtnClickTime[index] = 0;             // cancel the pending single-Click
      if (btn_design[index].DblClick.key)
-       // On btnSTF this is 0!
-       sendKey(btn_design[index].DblClick, click_time);
+       sendKey(btn_design[index].DblClick);
      return true;
-     
-  } else {
-    if (time_now - DblClickTime[index] > 1000) { //
-        BtnClickTime[index] = time_now;
-        if (mouse_active && index == btnEnter) {
-           Mouse.press(MOUSE_LEFT);
-        }
+  }
+
+  // --- (b) No DblClick configured -> eager Click, no waiting ---
+  if (btn_design[index].DblClick.key == 0) {
+    if (btn_design[index].Click.key) {
+      if (mouse_active && index == btnEnter) {
+        Mouse.click(MOUSE_LEFT);
+      } else {
+        sendKey(btn_design[index].Click);
+      }
     }
+    DblClickTime[index] = time_now;       // bookkeeping, not used for trigger
+    return false;
+  }
+
+  // --- (c) DblClick is configured -> defer the Click for now ---
+  if (time_now - DblClickTime[index] > 1000) {
+      BtnClickTime[index] = time_now;
+      if (mouse_active && index == btnEnter) {
+         Mouse.press(MOUSE_LEFT);
+      }
   }
   return false;
 }
@@ -908,23 +700,17 @@ void onButtonClick(PushButton& btn){
 
 // ----------------------------------------------------------------------------
 void onReset(PushButton& btn) {
-#ifdef WITH_SERIAL
     sendNMEA('I', "Reset(Manually)");
-#endif  // WITH_SERIAL
 
-#ifdef  WITH_WATCHDOG
   while (!digitalRead(active_pin_config[btnEnter])) { // = isPressed
     wdtReset();
     delay(200);
   }
-#endif
 
 #ifdef WITH_CLEAN_RESET
     // Sauberer Reset: kurz WDT scharf machen, dann busy-loop. Kein cli()
     // wie bei exit(), USB-Detach-Sequenz im Bootloader laeuft normal.
-# ifdef WITH_SERIAL
     Serial.flush();
-# endif
     wdt_enable(WDTO_15MS); // much faster...
     while (1) { }
 #else
@@ -941,6 +727,7 @@ void onBtnHeldTopLeft(PushButton& btn){
 // ----------------------------------------------------------------------------
 void onLongClick(PushButton& btn){
   int index = &btn - button;
+  BtnPressTime[index] = 0;
   if (index == btnEnter) {
     onReset(btn);
   } else {
@@ -956,15 +743,8 @@ void onLongClick(PushButton& btn){
 // ----------------------------------------------------------------------------
 void onJoyArrow(PushButton& btn) {
   int index = &btn - button;
-#if VERSION_TYPE == VERSION_OLD
-  // without diagonal movement of the mouse like the old sketch
-  // 'Stick_Remote_Control_br.ino'
-  for (int i=joyUp;i<=joyRight;i++) {
-     if (index != i)
-       if (btn_timer[i] > 0) // an other direction is used
-           return;
-  }
-#endif  // VERSION_TYPE == VERSION_OLD
+  // Diagonal movement is always allowed (was disabled in the old v1.0
+  // 'Stick_Remote_Control_br' code path - retired with the version split).
   if (!button[btnEnter].isPressed()) {
   // unsigned time_now = millis();
   bool first = !first_pressed[index];

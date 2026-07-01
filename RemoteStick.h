@@ -1,3 +1,5 @@
+#pragma once
+
 struct sKey {
   uint8_t ext;
   uint8_t key;
@@ -8,12 +10,14 @@ struct sKey {
 
 #define MOUSE_SWITCH        1
 #define APP_SWITCH          2
-#define APP_HIDE            3
-#define TOOGLE_STF_VARIO    4
-#define STICK_RESET         5
+#define APP_SWITCH2         3
+#define APP_HIDE            4
+#define TOOGLE_STF_VARIO    5
+#define STICK_RESET         6
 
 #define KEY_MOUSE_SWITCH {KEY_EXTEND, MOUSE_SWITCH}
 #define KEY_APP_SWITCH   {KEY_EXTEND, APP_SWITCH}
+#define KEY_APP_SWITCH2  {KEY_EXTEND, APP_SWITCH2}
 #define KEY_APP_HIDE     {KEY_EXTEND, APP_HIDE}
 #define KEY_TOGGLE_S_V   {KEY_EXTEND, TOOGLE_STF_VARIO}
 #define KEY_STICK_RESET  {KEY_EXTEND, STICK_RESET}
@@ -77,14 +81,20 @@ enum {
 #include "layouts/basic-layout.h"
 #include "layouts/advanced-layout.h"
 #include "layouts/android-layout.h"
+#include "layouts/android2-layout.h"
 #include "layouts/starterkey-layout.h"
+#include "layouts/starterkey2-layout.h"
+#include "layouts/test-layout.h"
 
-// Pointer-Tabelle auf alle Layouts (Pointer SELBST auch im Flash)
+// Pointer-Tabelle to alle layouts (Pointer itself also in flash)
 const PROGMEM void* const all_layouts[] = {
     layout_basic,
-    layout_advanced,
-    layout_android,
-    layout_starterkey,
+    layout_advanced,   // w/ some dbl clicks and slow click behavior
+    layout_android,    // w/o dbl click
+    layout_android2,   // w/ dbl click
+    layout_starterkey, // w/o dbl click
+    layout_starterkey2,// w/ dbl click
+    layout_test,       // test layout
 };
 const uint8_t NUM_LAYOUTS = sizeof(all_layouts) / sizeof(all_layouts[0]);
 
@@ -101,4 +111,5 @@ uint8_t active_layout_index = 0;
 //   loadPresetFromFlash(idx)      - select a flash preset and persist
 //   writeLayoutToEEPROM(idx)      - persist current btn_design
 //   updateKeySlot(btn, slot, ...) - modify a single key
-//   sendLayoutHealth()            - NMEA $POPSH diagnostic dump
+//   sendKeySlot(btn, slot, ...)   - ask for a single key
+//   sendLayoutHealth()            - NMEA $PSRCH,R diagnostic dump
