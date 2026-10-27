@@ -78,3 +78,58 @@ stefly_remote.build.board=AVR_LEONARDO
 stefly_remote.build.core=arduino
 stefly_remote.build.variant=leonardo
 stefly_remote.build.extra_flags={build.usb_flags}
+
+# === SteFly Rotary Panel ====================================================
+#
+# The Rotary Panel uses the same ATmega32U4 board and the same Caterina
+# bootloader as the Remote Stick, but its own USB product id, so that
+# OpenSoar can tell the two devices apart and pick the right driver
+# (VID 0x1209, PID 0x8502). Everything else is identical to the block above.
+
+stefly_rotary.name=SteFly Rotary Panel
+
+stefly_rotary.vid.0=0x1209
+stefly_rotary.pid.0=0x8502
+stefly_rotary.vid.1=0x2341
+stefly_rotary.pid.1=0x0036
+stefly_rotary.vid.2=0x2A03
+stefly_rotary.pid.2=0x0036
+
+stefly_rotary.upload_port.0.vid=0x1209
+stefly_rotary.upload_port.0.pid=0x8502
+stefly_rotary.upload_port.1.vid=0x2341
+stefly_rotary.upload_port.1.pid=0x0036
+stefly_rotary.upload_port.2.vid=0x2A03
+stefly_rotary.upload_port.2.pid=0x0036
+stefly_rotary.upload_port.3.board=stefly_rotary
+
+stefly_rotary.upload.tool=avrdude
+stefly_rotary.upload.tool.default=avrdude
+stefly_rotary.upload.tool.network=arduino_ota
+stefly_rotary.upload.protocol=avr109
+stefly_rotary.upload.maximum_size=28672
+stefly_rotary.upload.maximum_data_size=2560
+stefly_rotary.upload.speed=57600
+stefly_rotary.upload.disable_flushing=true
+stefly_rotary.upload.use_1200bps_touch=true
+stefly_rotary.upload.wait_for_upload_port=true
+
+stefly_rotary.bootloader.tool=avrdude
+stefly_rotary.bootloader.tool.default=avrdude
+stefly_rotary.bootloader.low_fuses=0xff
+stefly_rotary.bootloader.high_fuses=0xd8
+stefly_rotary.bootloader.extended_fuses=0xcb
+stefly_rotary.bootloader.file=caterina/Caterina-Leonardo.hex
+stefly_rotary.bootloader.unlock_bits=0x3F
+stefly_rotary.bootloader.lock_bits=0x2F
+
+stefly_rotary.build.mcu=atmega32u4
+stefly_rotary.build.f_cpu=16000000L
+stefly_rotary.build.vid=0x1209
+stefly_rotary.build.pid=0x8502
+stefly_rotary.build.usb_product="Rotary Panel"
+stefly_rotary.build.usb_manufacturer="SteFly.aero"
+stefly_rotary.build.board=AVR_LEONARDO
+stefly_rotary.build.core=arduino
+stefly_rotary.build.variant=leonardo
+stefly_rotary.build.extra_flags={build.usb_flags}

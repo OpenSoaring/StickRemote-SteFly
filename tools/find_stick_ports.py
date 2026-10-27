@@ -48,6 +48,7 @@ except ImportError:
 # Arduino-Leonardo-Varianten mit laufendem Sketch.
 FIRMWARE_IDS: list[tuple[int, int]] = [
     (0x1209, 0x8500),  # SteFly Stick Remote (pid.codes)
+    (0x1209, 0x8502),  # SteFly Rotary Panel (pid.codes), same firmware core
     (0x2341, 0x8036),  # Arduino Leonardo (Standard Arduino LLC)
     (0x2A03, 0x8036),  # Arduino Leonardo (alternate Arduino VID)
     (0x2341, 0x8037),  # Arduino Micro (selbe MCU/Bootloader)
