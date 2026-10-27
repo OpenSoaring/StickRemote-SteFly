@@ -50,6 +50,12 @@ const char* FileName  = (strrchr(__FILE__, '/') ?                     \
 // Written to a blank EEPROM on the first start.
 const char DefaultSerialNumber[] = "SF-SRC:00002";  // Stick Remote Control
 
+// Factory values of the user settings (see RemoteSettings.h), changeable from
+// OpenSoar. They reproduce the behaviour of v3.0: double click window 350 ms,
+// long press 900 ms, the mouse moves by the layout's distance (4 quarters)
+// per joystick repeat and is not accelerated.
+const RemoteSettings default_settings = { 350, 900, 4, 1 };
+
 // Factory wiring of the stick, see RemoteEEprom.h (pin config block).
 // Order: btnFn, btnMenu, btnX, btnSTF, btnEnter, joyUp, joyDown, joyLeft,
 //        joyRight, btnPTT (0xFF = not connected)
@@ -84,7 +90,8 @@ const uint8_t NUM_LAYOUTS = sizeof(all_layouts) / sizeof(all_layouts[0]);
 const int joy_rebounce_interval = 3;
 const int joy_hold_threshold    = 80;
 
-const int mouse_speed_switch = 800;   // faster mouse after this time (in ms)
+const int mouse_speed_switch = 800;   // the MouseAccel setting applies after
+                                      // the joystick is held this long (in ms)
 //                             KEY, MOUSE
 const int joy_repeats[][2] = {{  5,   0},     // 1st reaction
                               {150, 120},     // pause after 1st press
@@ -144,7 +151,12 @@ void onJoyArrow(PushButton& btn) {
     }
     if (joy_counter[index] >= key_bounce) {
       if (mouse_active) {
-        Mouse.move(btn_design[index].JoyX.key, btn_design[index].JoyY.key);
+        // MouseStep scales the layout distance, MouseAccel speeds the mouse
+        // up while the joystick is held for longer.
+        int factor = (time_now - btn_timer[index] > (unsigned long)mouse_speed_switch)
+                     ? settings.mouse_accel : 1;
+        Mouse.move(remoteMouseDistance(btn_design[index].JoyX.key, 1, factor),
+                   remoteMouseDistance(btn_design[index].JoyY.key, 1, factor));
       } else { // mouse not active
         sendKey(btn_design[index].JoyKey);
       }
