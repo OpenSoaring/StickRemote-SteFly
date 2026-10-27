@@ -48,3 +48,15 @@ History of detailed developing description you can find **[here](History.md)!**
   * <b>9 (STF)</b> (out of this layout): is a button (backside of stick) for toggling between Vario and STF (Speed-to-Fly) mode
 
 
+
+### Building
+
+Since v3.0 the device independent part of the firmware (serial protocol, key
+layouts, EEPROM, watchdog, USB recovery, button handling) lives in the
+**SteFlyRemoteCore** library, which the SteFly Rotary Panel uses as well.
+The layouts in `layouts/` belong to the stick; only the basic layout comes
+from the library and is the same on all devices. It
+has to be installed as an Arduino library, e.g. as a directory junction
+`Documents\Arduino\libraries\SteFlyRemoteCore` pointing to the library's
+repository. Further libraries: Keyboard, Mouse, Bounce2, r89m Buttons and
+r89m PushButton.
