@@ -9,7 +9,7 @@ Werkstatt-Tool.
 
 Ablauf:
     1. User wird nach einer Version gefragt (z.B. "3.0.2").
-    2. Alle Dateien 'StickRemote-SteFly.ino.*' aus
+    2. Alle Dateien 'StickRemote.ino.*' aus
          build/arduino.avr.stefly_remote/
        werden nach
          deploy/<major.minor>/
@@ -41,7 +41,7 @@ SOURCE_SUBDIR   = Path("build") / "arduino.avr.stefly_remote"
 DEPLOY_ROOT     = Path("deploy")
 FLASH_SUBDIR    = Path("FlashRemoteStick")
 FLASH_BUILD     = FLASH_SUBDIR / "build"
-SOURCE_STEM     = "StickRemote-SteFly.ino"
+SOURCE_STEM     = "StickRemote.ino"
 DEST_STEM_TPL   = "StickRemote-SteFly-v{version}"
 BINARY_PATH_TPL = "build/StickRemote-SteFly-v{version}.hex"
 
@@ -72,8 +72,8 @@ def major_minor(version: str) -> str:
 
 def suffix_after_stem(name: str, stem: str) -> str | None:
     """Zieht die Extension nach '<stem>.' raus.
-    'StickRemote-SteFly.ino.hex'                 -> 'hex'
-    'StickRemote-SteFly.ino.with_bootloader.hex' -> 'with_bootloader.hex'
+    'StickRemote.ino.hex'                 -> 'hex'
+    'StickRemote.ino.with_bootloader.hex' -> 'with_bootloader.hex'
     """
     prefix = stem + "."
     if not name.startswith(prefix):

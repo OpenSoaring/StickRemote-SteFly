@@ -19,7 +19,7 @@ Lauffaehig auf:
     macOS    (/dev/cu.usbmodem*)
 
 Beispiel:
-    python tools/programmer.py --firmware build/arduino.avr.leonardo/StickRemote-SteFly.ino.hex
+    python tools/programmer.py --firmware build/arduino.avr.leonardo/StickRemote.ino.hex
     python tools/programmer.py -f build/StickRemote-SteFly.hex --verbose
 
 Erfordert: pyserial  (pip install pyserial)
@@ -243,13 +243,13 @@ def find_default_firmware(project_root: Path) -> Path | None:
     """Sucht eine sinnvolle .hex-Datei im Projekt, wenn der User keine angibt."""
     for rel in (
         "build/StickRemote-SteFly.hex",
-        "build/arduino.avr.leonardo/StickRemote-SteFly.ino.hex",
+        "build/arduino.avr.leonardo/StickRemote.ino.hex",
     ):
         p = project_root / rel
         if p.exists():
             return p
     # Fallback: irgendein neuestes .hex im build-Tree
-    builds = list(project_root.glob("build/**/StickRemote-SteFly.ino.hex"))
+    builds = list(project_root.glob("build/**/StickRemote.ino.hex"))
     if builds:
         builds.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         return builds[0]
