@@ -43,7 +43,7 @@ History of detailed developing description you can find **[here](History.md)!**
   * <b>2 (M)</b> : call the QuickMenu ('F1'), long pressure (> 1 sec) Audio/Vario-Menu ('M')
   * <b>3 (X)</b> : is ESC, **a long pressure calls the Quit program command ('Q'), and a very long pressure ( > 4 sec) sends a 'X' - can be used as exit command or for a shutdown event**
   * <b>4 (PTT)</b> : is an additional button connected to the PTT (not managed by the RemoteControl itself)
-  * <b>5</b> (up), <b>6</b> (down), <b>7</b> (left), <b>8</b> (right) :  are arrow keys **with an accelerated movement after 1 second of continuous pressure**
+  * <b>5</b> (up), <b>6</b> (down), <b>7</b> (left), <b>8</b> (right) :  are arrow keys (the accelerated mouse movement after a longer pressure is switched off since v4.2)
   * <b>0</b> : is Enter, **a long pressure (> 1 sec) should reset the RemoteStick!**
   * <b>9 (STF)</b> (out of this layout): is a button (backside of stick) for toggling between Vario and STF (Speed-to-Fly) mode
 

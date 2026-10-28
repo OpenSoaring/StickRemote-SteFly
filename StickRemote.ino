@@ -91,8 +91,10 @@ const uint8_t NUM_LAYOUTS = sizeof(all_layouts) / sizeof(all_layouts[0]);
 const int joy_rebounce_interval = 3;
 const int joy_hold_threshold    = 80;
 
-const int mouse_speed_switch = 800;   // the MouseAccel setting applies after
-                                      // the joystick is held this long (in ms)
+const int mouse_speed_switch = 800;   // the mouse acceleration applies after
+                                      // the joystick is held this long (in ms);
+                                      // it is fixed at 1 for now, see
+                                      // RemoteSettings.h
 //                             KEY, MOUSE
 const int joy_repeats[][2] = {{  5,   0},     // 1st reaction
                               {150, 120},     // pause after 1st press
@@ -152,8 +154,9 @@ void onJoyArrow(PushButton& btn) {
     }
     if (joy_counter[index] >= key_bounce) {
       if (mouse_active) {
-        // MouseStep scales the layout distance, MouseAccel speeds the mouse
-        // up while the joystick is held for longer.
+        // MouseStep scales the layout distance; the acceleration would speed
+        // the mouse up while the joystick is held for longer, but it is fixed
+        // at 1 for now.
         int factor = (time_now - btn_timer[index] > (unsigned long)mouse_speed_switch)
                      ? settings.mouse_accel : 1;
         Mouse.move(remoteMouseDistance(btn_design[index].JoyX.key, 1, factor),
