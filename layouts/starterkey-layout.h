@@ -1,3 +1,5 @@
+const char layout_starterkey_name[] PROGMEM = "Starter-Key";
+
 const PROGMEM struct key_struct layout_starterkey[btnSize] = {
     // Layout for sticks w/o Fn button (Fn is the engine starter key).
     //

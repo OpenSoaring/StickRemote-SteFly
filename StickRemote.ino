@@ -66,8 +66,9 @@ const PROGMEM uint8_t default_pin_config[btnSize] = {
 // --- Layouts of the stick --------------------------------------------------
 // The basic layout comes from the library and is the same on all SteFly
 // devices; the others are tuned for the stick and may differ from those of
-// the Rotary Panel. The index is what $PSRCS,S,Layout,N selects and what the
-// EEPROM stores, so layout_basic stays first and new layouts are appended.
+// the Rotary Panel. The stick reports this table, index and name, to the
+// host, which shows exactly these layouts; layout_basic stays first as the
+// factory default.
 #include "layouts/advanced-layout.h"
 #include "layouts/android-layout.h"
 #include "layouts/android2-layout.h"
@@ -75,14 +76,14 @@ const PROGMEM uint8_t default_pin_config[btnSize] = {
 #include "layouts/starterkey2-layout.h"
 #include "layouts/test-layout.h"
 
-const PROGMEM void* const all_layouts[] = {
-    layout_basic,      // from SteFlyRemoteCore, same on all devices
-    layout_advanced,   // w/ some dbl clicks and slow click behavior
-    layout_android,    // w/o dbl click
-    layout_android2,   // w/ dbl click
-    layout_starterkey, // w/o dbl click
-    layout_starterkey2,// w/ dbl click
-    layout_test,       // test layout
+const RemoteLayout all_layouts[] PROGMEM = {
+    { layout_basic, layout_basic_name },             // from SteFlyRemoteCore, same on all devices
+    { layout_advanced, layout_advanced_name },       // w/ some dbl clicks and slow click behavior
+    { layout_android, layout_android_name },         // w/o dbl click
+    { layout_android2, layout_android2_name },       // w/ dbl click
+    { layout_starterkey, layout_starterkey_name },   // w/o dbl click
+    { layout_starterkey2, layout_starterkey2_name }, // w/ dbl click
+    { layout_test, layout_test_name },               // test layout
 };
 const uint8_t NUM_LAYOUTS = sizeof(all_layouts) / sizeof(all_layouts[0]);
 

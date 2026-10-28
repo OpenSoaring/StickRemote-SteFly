@@ -1,3 +1,5 @@
+const char layout_advanced_name[] PROGMEM = "Advanced";
+
 const PROGMEM struct key_struct layout_advanced[btnSize] = {
     // ... advanced layout, with some dbl clicks and slow click behavior
 /* Fn  */  { KEY_MOUSE_SWITCH,    {0,KEY_F3}, {0,KEY_F4}},   

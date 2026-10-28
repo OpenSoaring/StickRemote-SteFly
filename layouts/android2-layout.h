@@ -1,3 +1,5 @@
+const char layout_android2_name[] PROGMEM = "Android (w/ app switch)";
+
 const PROGMEM struct key_struct layout_android2[btnSize] = {
     // Layout for Android w/ app switch and w/o mouse.
     //

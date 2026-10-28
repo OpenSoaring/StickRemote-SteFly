@@ -1,3 +1,5 @@
+const char layout_test_name[] PROGMEM = "Test-Layout";
+
 const PROGMEM struct key_struct layout_test[btnSize] = {
 /* Fn  */  { {0,'F'}, {0,'1'}, {0,'2'}},   
 /* M   */  { {0,'M'}, {0,'3'}, {0,'4'}},   

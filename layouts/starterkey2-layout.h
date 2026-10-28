@@ -1,3 +1,5 @@
+const char layout_starterkey2_name[] PROGMEM = "Starter-Key (w/ app switch)";
+
 const PROGMEM struct key_struct layout_starterkey2[btnSize] = {
     // Layout for sticks w/o Fn button (Fn is the engine starter key).
     // Primary target: SteFlyNav on Android - so APP_SWITCH and APP_HIDE are
