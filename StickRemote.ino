@@ -40,7 +40,7 @@ the sketch uses libraries from
 
 const char* Device  = "Stick Remote Control (SteFly)";
 const char* Date    = __DATE__;
-const char* Version = "v3.0";
+const char* Version = "v4.2";
 
 // check Linux delimiter and/or Window delimiter: 
 const char* FileName  = (strrchr(__FILE__, '/') ?                     \

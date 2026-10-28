@@ -1,3 +1,20 @@
+## 2026-10-28: Version v4.2 (SteFlyRemoteCore 1.2)
+sketch: **StickRemote.ino**, built on the SteFlyRemoteCore library 1.2
+#### Layouts unchanged
+#### What changes
+  * **Layout table reported to the host**: the stick reports its layouts,
+    index and name, in its info block (`$PSRCI,A,Layout,<index>,<name>`,
+    also on `$PSRCI,R,Layouts`). OpenSoar builds the layout choice of its
+    manage dialog from it, so the choice always matches the firmware of the
+    attached device, also where the Rotary Panel has other layouts.
+  * **No mouse acceleration**: the faster mouse movement while the joystick
+    is held longer is switched off (fixed at 1), because it confused more
+    than it helped. MouseAccel is no longer a setting; the code stays, so
+    that it can come back.
+  * **Version**: the version text was left at "v3.0" since the move to the
+    shared library, so OpenSoar showed "v3.0" for every later build. It
+    continues above v4.1 now and is the same on the stick and the panel.
+
 ## 2026-05-19: Version v4.1 (USB-Recovery, stabilisiert)
 sketch: **StickRemote-SteFly.ino** (Schalter: `#define VERSION_TYPE VERSION_4`)
 #### Layout unverändert gegenüber v3/v4.0
