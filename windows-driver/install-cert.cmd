@@ -29,8 +29,8 @@ if not exist "%CER%" (
     exit /b 2
 )
 
-echo SteFly Stick Remote - Zertifikat-Vertrauensstellung
-echo ===================================================
+echo SteFly Stick Remote / Rotary Panel - Zertifikat-Vertrauensstellung
+echo ==================================================================
 echo.
 echo Importiere %CER% in:
 echo   - Vertrauenswuerdige Stammzertifizierungsstellen (Root)

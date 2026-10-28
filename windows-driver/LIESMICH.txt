@@ -1,9 +1,10 @@
-﻿SteFly Stick Remote - Treiber-Installation
-==========================================
+﻿SteFly Stick Remote / Rotary Panel - Treiber-Installation
+========================================================
 
 Diese Treiber-Datei sorgt dafuer, dass Windows den SteFly Stick Remote
-mit dem richtigen Namen im Geraete-Manager anzeigt ("SteFly Stick Remote"
-statt "Serielles USB-Geraet"). Der eigentliche Treiber ist Windows-eigener
+und das SteFly Rotary Panel mit dem richtigen Namen im Geraete-Manager
+anzeigt ("SteFly Stick Remote" bzw. "SteFly Rotary Panel" statt
+"Serielles USB-Geraet"). Der eigentliche Treiber ist Windows-eigener
 usbser.sys - es wird kein fremder Kernel-Treiber installiert.
 
 Installation (einmalig pro PC):
@@ -17,11 +18,11 @@ Installation (einmalig pro PC):
        Rechtsklick -> "Als Administrator ausfuehren"
        Installiert die INF systemweit in den Treiber-Store.
 
-  3) Stick einstecken (oder einmal abziehen + neu einstecken, falls
-     er schon angeschlossen war).
+  3) Stick bzw. Panel einstecken (oder einmal abziehen + neu einstecken,
+     falls es schon angeschlossen war).
 
-  4) Im Geraete-Manager wird der Stick jetzt als "SteFly Stick Remote (COMx)"
-     unter "Anschluesse (COM und LPT)" angezeigt.
+  4) Im Geraete-Manager steht das Geraet jetzt als "SteFly Stick Remote (COMx)"
+     bzw. "SteFly Rotary Panel (COMx)" unter "Anschluesse (COM und LPT)".
 
 Bei Problemen
 -------------
@@ -33,7 +34,7 @@ Bei Problemen
     wurde nicht vorher ausgefuehrt oder hat nicht beide Stores
     (Root + TrustedPublisher) erfolgreich befuellt.
 
-  * Der Stick funktioniert auch OHNE diese Treiber-Installation -
+  * Stick und Panel funktionieren auch OHNE diese Treiber-Installation -
     Windows nutzt dann den generischen Namen "Serielles USB-Geraet (COMx)",
     die HID-Tastatur und -Maus laufen aber normal.
 

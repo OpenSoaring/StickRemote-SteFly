@@ -1,10 +1,11 @@
-﻿SteFly Stick Remote - Driver Installation
-=========================================
+﻿SteFly Stick Remote / Rotary Panel - Driver Installation
+========================================================
 
-This driver package makes Windows display the SteFly Stick Remote with the
-correct name in Device Manager ("SteFly Stick Remote" instead of "USB Serial
-Device"). The actual driver used is the Windows built-in usbser.sys - no
-third-party kernel driver is installed.
+This driver package makes Windows display the SteFly Stick Remote and the
+SteFly Rotary Panel with the correct name in Device Manager ("SteFly Stick
+Remote" or "SteFly Rotary Panel" instead of "USB Serial Device"). The actual
+driver used is the Windows built-in usbser.sys - no third-party kernel driver
+is installed.
 
 Installation (once per PC):
 ---------------------------
@@ -17,10 +18,11 @@ Installation (once per PC):
        Right-click -> "Run as administrator"
        Installs the INF system-wide into the Windows driver store.
 
-  3) Plug in the stick (or unplug and replug it if it was already connected).
+  3) Plug in the stick or panel (or unplug and replug it if it was already
+     connected).
 
-  4) Device Manager will now show the stick as "SteFly Stick Remote (COMx)"
-     under "Ports (COM & LPT)".
+  4) Device Manager will now show it as "SteFly Stick Remote (COMx)" or
+     "SteFly Rotary Panel (COMx)" under "Ports (COM & LPT)".
 
 Troubleshooting
 ---------------
@@ -32,7 +34,7 @@ Troubleshooting
     executed first, or did not successfully populate both stores (Root and
     TrustedPublisher).
 
-  * The stick works WITHOUT this driver installation as well - Windows will
+  * Stick and panel work WITHOUT this driver installation as well - Windows will
     just use the generic name "USB Serial Device (COMx)", but the HID keyboard
     and mouse functions will operate normally.
 

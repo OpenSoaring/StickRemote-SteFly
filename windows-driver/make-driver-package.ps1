@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-  Erzeugt das Auslieferungs-ZIP fuer den SteFly Stick Remote Treiber.
+  Erzeugt das Auslieferungs-ZIP fuer den Treiber von SteFly Stick Remote
+  und SteFly Rotary Panel (eine INF fuer beide Geraete).
 
 .DESCRIPTION
   Bundelt INF, signierte CAT, Public-Cert, beide Installer und eine
@@ -64,12 +65,13 @@ if ($missing.Count -gt 0) {
 # --- 2) LIESMICH.txt (Deutsch) frisch erzeugen ------------------------------
 $liesmich = Join-Path $here "LIESMICH.txt"
 $liesmichContent = @"
-SteFly Stick Remote - Treiber-Installation
-==========================================
+SteFly Stick Remote / Rotary Panel - Treiber-Installation
+========================================================
 
 Diese Treiber-Datei sorgt dafuer, dass Windows den SteFly Stick Remote
-mit dem richtigen Namen im Geraete-Manager anzeigt ("SteFly Stick Remote"
-statt "Serielles USB-Geraet"). Der eigentliche Treiber ist Windows-eigener
+und das SteFly Rotary Panel mit dem richtigen Namen im Geraete-Manager
+anzeigt ("SteFly Stick Remote" bzw. "SteFly Rotary Panel" statt
+"Serielles USB-Geraet"). Der eigentliche Treiber ist Windows-eigener
 usbser.sys - es wird kein fremder Kernel-Treiber installiert.
 
 Installation (einmalig pro PC):
@@ -83,11 +85,11 @@ Installation (einmalig pro PC):
        Rechtsklick -> "Als Administrator ausfuehren"
        Installiert die INF systemweit in den Treiber-Store.
 
-  3) Stick einstecken (oder einmal abziehen + neu einstecken, falls
-     er schon angeschlossen war).
+  3) Stick bzw. Panel einstecken (oder einmal abziehen + neu einstecken,
+     falls es schon angeschlossen war).
 
-  4) Im Geraete-Manager wird der Stick jetzt als "SteFly Stick Remote (COMx)"
-     unter "Anschluesse (COM und LPT)" angezeigt.
+  4) Im Geraete-Manager steht das Geraet jetzt als "SteFly Stick Remote (COMx)"
+     bzw. "SteFly Rotary Panel (COMx)" unter "Anschluesse (COM und LPT)".
 
 Bei Problemen
 -------------
@@ -99,7 +101,7 @@ Bei Problemen
     wurde nicht vorher ausgefuehrt oder hat nicht beide Stores
     (Root + TrustedPublisher) erfolgreich befuellt.
 
-  * Der Stick funktioniert auch OHNE diese Treiber-Installation -
+  * Stick und Panel funktionieren auch OHNE diese Treiber-Installation -
     Windows nutzt dann den generischen Namen "Serielles USB-Geraet (COMx)",
     die HID-Tastatur und -Maus laufen aber normal.
 
@@ -115,13 +117,14 @@ Write-Host "LIESMICH.txt erzeugt: $liesmich" -ForegroundColor Green
 # --- 2b) README.txt (English) -----------------------------------------------
 $readme = Join-Path $here "README.txt"
 $readmeContent = @"
-SteFly Stick Remote - Driver Installation
-=========================================
+SteFly Stick Remote / Rotary Panel - Driver Installation
+========================================================
 
-This driver package makes Windows display the SteFly Stick Remote with the
-correct name in Device Manager ("SteFly Stick Remote" instead of "USB Serial
-Device"). The actual driver used is the Windows built-in usbser.sys - no
-third-party kernel driver is installed.
+This driver package makes Windows display the SteFly Stick Remote and the
+SteFly Rotary Panel with the correct name in Device Manager ("SteFly Stick
+Remote" or "SteFly Rotary Panel" instead of "USB Serial Device"). The actual
+driver used is the Windows built-in usbser.sys - no third-party kernel driver
+is installed.
 
 Installation (once per PC):
 ---------------------------
@@ -134,10 +137,11 @@ Installation (once per PC):
        Right-click -> "Run as administrator"
        Installs the INF system-wide into the Windows driver store.
 
-  3) Plug in the stick (or unplug and replug it if it was already connected).
+  3) Plug in the stick or panel (or unplug and replug it if it was already
+     connected).
 
-  4) Device Manager will now show the stick as "SteFly Stick Remote (COMx)"
-     under "Ports (COM & LPT)".
+  4) Device Manager will now show it as "SteFly Stick Remote (COMx)" or
+     "SteFly Rotary Panel (COMx)" under "Ports (COM & LPT)".
 
 Troubleshooting
 ---------------
@@ -149,7 +153,7 @@ Troubleshooting
     executed first, or did not successfully populate both stores (Root and
     TrustedPublisher).
 
-  * The stick works WITHOUT this driver installation as well - Windows will
+  * Stick and panel work WITHOUT this driver installation as well - Windows will
     just use the generic name "USB Serial Device (COMx)", but the HID keyboard
     and mouse functions will operate normally.
 

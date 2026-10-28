@@ -2,9 +2,10 @@
 REM ============================================================================
 REM install-driver.cmd
 REM
-REM Installiert die SteFly-Stick-Remote-INF systemweit in den Windows-
-REM Treiber-Store. Danach erkennt JEDER User auf diesem Rechner den Stick
-REM unter dem richtigen Namen, auch ohne vorherige manuelle Treiberauswahl.
+REM Installiert die SteFly-INF systemweit in den Windows-Treiber-Store.
+REM Danach erkennt JEDER User auf diesem Rechner Stick Remote (1209:8500)
+REM und Rotary Panel (1209:8502) unter dem richtigen Namen, auch ohne
+REM vorherige manuelle Treiberauswahl.
 REM
 REM Benoetigt: Administrator-Rechte (Rechtsklick "Als Administrator ausfuehren")
 REM Windows 10 / 11
@@ -24,8 +25,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo SteFly Stick Remote Treiber-Installation
-echo ========================================
+echo SteFly Stick Remote / Rotary Panel Treiber-Installation
+echo =======================================================
 echo.
 
 set "INF=stefly-stick-remote.inf"

@@ -1,9 +1,13 @@
 ; ============================================================================
 ; stefly-stick-remote.inf
 ;
-; Windows-INF-Datei fuer den SteFly Stick Remote (pid.codes VID 0x1209, PID 0x8500).
-; Verwendet den in Windows 10/11 eingebauten Treiber 'usbser.sys' und liefert
-; nur den Friendly-Name fuer den Geraete-Manager.
+; Windows INF for the SteFly USB input devices, both built on the same
+; ATmega32U4 firmware core and identified by their pid.codes ids:
+;   SteFly Stick Remote   VID 0x1209, PID 0x8500
+;   SteFly Rotary Panel   VID 0x1209, PID 0x8502
+; It binds the usbser.sys that comes with Windows 10/11 to the CDC interface
+; (MI_00) and only supplies the friendly name for the Device Manager, so one
+; signed package serves both devices.
 ;
 ; Installation: siehe README.md im selben Ordner.
 ;
@@ -15,7 +19,7 @@ Signature   = "$Windows NT$"
 Class       = Ports
 ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
 Provider    = %ManufacturerName%
-DriverVer   = 05/27/2026,1.0.0.0
+DriverVer   = 10/28/2026,1.1.0.0
 CatalogFile = stefly-stick-remote.cat
 
 [Manufacturer]
@@ -24,14 +28,17 @@ CatalogFile = stefly-stick-remote.cat
 ; ----- 64-bit AMD/Intel ------------------------------------------------------
 [SteFlyDevices.NTamd64]
 %StickRemote_DeviceName% = SteFlyInstall, USB\VID_1209&PID_8500&MI_00
+%RotaryPanel_DeviceName% = SteFlyInstall, USB\VID_1209&PID_8502&MI_00
 
 ; ----- 32-bit x86 (Legacy, fuer aeltere Windows-Installationen) -------------
 [SteFlyDevices.NTx86]
 %StickRemote_DeviceName% = SteFlyInstall, USB\VID_1209&PID_8500&MI_00
+%RotaryPanel_DeviceName% = SteFlyInstall, USB\VID_1209&PID_8502&MI_00
 
 ; ----- ARM64 (Surface Pro X, Snapdragon-Notebooks, etc.) -------------------
 [SteFlyDevices.NTarm64]
 %StickRemote_DeviceName% = SteFlyInstall, USB\VID_1209&PID_8500&MI_00
+%RotaryPanel_DeviceName% = SteFlyInstall, USB\VID_1209&PID_8502&MI_00
 
 ; ----- Installations-Abschnitt: bindet den OS-Standard-usbser.sys ein ------
 [SteFlyInstall]
@@ -52,3 +59,4 @@ Needs   = USBSER.NT.HW
 [Strings]
 ManufacturerName        = "SteFly.aero"
 StickRemote_DeviceName  = "SteFly Stick Remote"
+RotaryPanel_DeviceName  = "SteFly Rotary Panel"
