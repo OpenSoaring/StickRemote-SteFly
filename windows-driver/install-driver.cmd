@@ -29,7 +29,7 @@ echo SteFly Stick Remote / Rotary Panel Treiber-Installation
 echo =======================================================
 echo.
 
-set "INF=stefly-stick-remote.inf"
+set "INF=stefly-devices.inf"
 
 if not exist "%INF%" (
     echo FEHLER: %INF% nicht gefunden im aktuellen Verzeichnis.

@@ -1,5 +1,5 @@
 ; ============================================================================
-; stefly-stick-remote.inf
+; stefly-devices.inf
 ;
 ; Windows INF for the SteFly USB input devices, both built on the same
 ; ATmega32U4 firmware core and identified by their pid.codes ids:
@@ -20,7 +20,7 @@ Class       = Ports
 ClassGuid   = {4D36E978-E325-11CE-BFC1-08002BE10318}
 Provider    = %ManufacturerName%
 DriverVer   = 10/28/2026,1.1.0.0
-CatalogFile = stefly-stick-remote.cat
+CatalogFile = stefly-devices.cat
 
 [Manufacturer]
 %ManufacturerName% = SteFlyDevices, NTamd64, NTx86, NTarm64

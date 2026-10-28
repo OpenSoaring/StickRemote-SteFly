@@ -9,7 +9,7 @@
   mitgepackt - die gehoert ausschliesslich auf dein Entwicklungssystem.
 
 .PARAMETER OutputPath
-  Pfad fuer das fertige ZIP. Default: SteFly-Stick-Remote-Treiber.zip
+  Pfad fuer das fertige ZIP. Default: SteFly-Devices-Treiber.zip
   im Projektwurzel-Ordner.
 
 .PARAMETER Force
@@ -34,13 +34,13 @@ $here        = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $here
 
 if (-not $OutputPath) {
-    $OutputPath = Join-Path $projectRoot "SteFly-Stick-Remote-Treiber.zip"
+    $OutputPath = Join-Path $projectRoot "SteFly-Devices-Treiber.zip"
 }
 
 # --- 1) Pflicht-Dateien pruefen ---------------------------------------------
 $required = @(
-    "stefly-stick-remote.inf",
-    "stefly-stick-remote.cat",
+    "stefly-devices.inf",
+    "stefly-devices.cat",
     "stefly-codesign.cer",
     "install-cert.cmd",
     "install-driver.cmd"
